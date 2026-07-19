@@ -1,0 +1,1170 @@
+:root {
+  --color-blue: #0c5fe0;
+  --color-blue-dark: #0a4ab3;
+  --color-blue-tint: #eaf1fb;
+  --color-green: #1f8a4c;
+  --color-green-tint: #e7f5ec;
+  --color-risk: #b3413a;
+  --color-risk-tint: #fbeceb;
+  --color-slate: #5b6b7c;
+  --color-ink: #101828;
+  --bg-page: #eaf1fb;
+  --bg-card: #ffffff;
+  --border: #dbe4f0;
+  --border-soft: #e8eef7;
+
+  --text-h1-size: 1.714rem;
+  --text-h2-size: 1.286rem;
+  --text-kpi-size: 2.286rem;
+  --text-subhead-size: 1.143rem;
+  --text-body-size: 1rem;
+  --text-label-size: 0.857rem;
+  --text-micro-size: 0.786rem;
+}
+
+* { box-sizing: border-box; }
+
+/* Any element toggled via the `hidden` attribute must actually collapse,
+   even if a more specific rule below also sets `display` on it. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-page);
+  color: var(--color-ink);
+  font-family: "Inter", "Avenir Next", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 0;
+}
+
+#app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+}
+
+/* ---------------- header ---------------- */
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+
+.app-title {
+  font-size: var(--text-h1-size);
+  font-weight: 700;
+  line-height: 32px;
+  margin: 0;
+}
+
+.app-subtitle {
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  color: var(--color-slate);
+  margin-top: 4px;
+}
+
+.header-right {
+  position: relative;
+  text-align: right;
+}
+
+.refresh-ts {
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+  margin-bottom: 6px;
+}
+
+.header-right-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.data-guide-btn {
+  background: #fff;
+  color: var(--color-blue-dark);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: var(--text-label-size);
+  font-weight: 700;
+  cursor: pointer;
+}
+.data-guide-btn:hover { background: var(--color-blue-tint); }
+
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-green-tint);
+  color: var(--color-green);
+  border: 1px solid #bfe3cc;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: var(--text-label-size);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.data-guide-panel {
+  position: absolute;
+  right: 130px;
+  top: 100%;
+  margin-top: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(16, 40, 80, 0.14);
+  padding: 14px 16px;
+  width: 380px;
+  max-height: 420px;
+  overflow-y: auto;
+  text-align: left;
+  z-index: 31;
+}
+
+.data-guide-title {
+  font-size: var(--text-subhead-size);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.data-guide-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.data-guide-row:first-of-type { border-top: none; }
+
+.data-guide-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.data-guide-kpi-name {
+  font-size: var(--text-label-size);
+  font-weight: 700;
+}
+
+.essence-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-blue);
+  background: var(--color-blue-tint);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.source-badge {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.source-badge.source-pdf { color: var(--color-blue-dark); background: var(--color-blue-tint); }
+.source-badge.source-internal { color: var(--color-slate); background: var(--border-soft); }
+.source-badge.source-gap { color: #8a5a12; background: #fbf1de; }
+
+.data-guide-formula-name {
+  font-size: var(--text-micro-size);
+  font-weight: 700;
+  color: var(--color-ink);
+  margin-bottom: 2px;
+}
+
+.data-guide-formula-detail {
+  font-size: var(--text-micro-size);
+  color: var(--color-ink);
+  line-height: 16px;
+}
+.data-guide-formula-detail.muted { color: var(--color-slate); font-style: italic; }
+
+.trust-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-green);
+  display: inline-block;
+}
+
+.trust-badge-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(16, 40, 80, 0.14);
+  padding: 14px 16px;
+  width: 260px;
+  text-align: left;
+  z-index: 30;
+}
+
+.trust-badge-title {
+  font-size: var(--text-label-size);
+  font-weight: 700;
+  color: var(--color-green);
+  margin-bottom: 8px;
+}
+
+.trust-badge-row {
+  font-size: var(--text-micro-size);
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+.trust-badge-row.muted { color: var(--color-slate); margin-top: 8px; }
+
+/* ---------------- tab strip ---------------- */
+
+.tab-strip {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  font-size: var(--text-label-size);
+  font-weight: 700;
+  color: var(--color-slate);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+}
+
+.tab-btn:hover { color: var(--color-blue); background: var(--color-blue-tint); }
+
+.tab-btn.active {
+  color: var(--color-blue);
+  border-bottom: 2px solid var(--color-blue);
+  background: var(--color-blue-tint);
+}
+
+/* ---------------- filter band ---------------- */
+
+.filter-band {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+
+.filter-band-core {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.more-filters-toggle {
+  appearance: none;
+  border: 1px dashed var(--border);
+  background: var(--bg-page);
+  color: var(--color-blue-dark);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: var(--text-micro-size);
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: auto;
+}
+.more-filters-toggle:hover { background: var(--color-blue-tint); }
+
+.more-count {
+  display: inline-block;
+  background: var(--color-blue);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 10px;
+  padding: 1px 6px;
+  margin: 0 2px;
+}
+
+/* 2026-07-19: used to be three .filter-group columns (Business
+   Firmographics / Customer Tenure / Product Mix & Depth), each an inner
+   .filter-group-body row at 8px gap, separated from each other by a wider
+   28px gap -- a layout left over from when those three columns had their
+   own heading labels (removed earlier today to de-clutter). With the
+   headings gone, that alternating 8px/28px spacing just reads as
+   inconsistent gaps between boxes for no visible reason, so the group
+   wrapper was removed from the markup (renderFilterBand) and every box in
+   this panel now sits in one flat row sharing this one gap value. */
+.filter-band-more {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+/* ---------------- unified filter control box ----------------
+   Every filter control in the band -- Time Range, View Grain, Trend
+   Display, Bundle Depth, the multi-selects, the Custom-range pickers --
+   renders inside this one box shape (border, radius, padding, min-height,
+   label caption + value/control stacked inside). One shape, one set of
+   type sizes, used everywhere, so the band doesn't mix a "label above a
+   bordered select" look with a "bordered box with the label inside" look
+   depending on which control happens to render it. */
+.filter-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 5px 10px;
+  min-width: 112px;
+  min-height: 40px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  box-sizing: border-box;
+}
+.filter-box-clickable {
+  appearance: none;
+  align-items: flex-start;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.filter-box-label {
+  font-size: var(--text-micro-size);
+  font-weight: 600;
+  color: var(--color-slate);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.filter-box-value {
+  font-size: var(--text-micro-size);
+  font-weight: 500;
+  color: var(--color-ink);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "More filters" boxes (Company Size, Industry, Country, Tenure, Product,
+   Bundle Depth) previously sized to their own content -- a short "All" next
+   to a longer "3 selected" made the row look ragged and unaligned. Give
+   every box in this panel the same fixed width instead, so the grid reads
+   as a uniform set of controls regardless of what each one's current value
+   happens to say; the label/value ellipsis rules above keep a long
+   selection from breaking that width back open. */
+.filter-band-more .filter-box { width: 150px; }
+.filter-box-select {
+  appearance: auto;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  height: 20px;
+  font-size: var(--text-micro-size);
+  font-weight: 500;
+  color: var(--color-ink);
+  line-height: 1.2;
+}
+/* Bundle Depth is the one plain <select> living in the "More filters" panel,
+   next to five multi-select filters that render as a plain label + value
+   button with no dropdown affordance at all -- its native browser arrow
+   stood out as the only box with one, and reserves its own UA-controlled
+   width/padding for that arrow regardless of the padding:0 above, which
+   could leave it a hair off from its neighbors' exact box width. Strip the
+   native appearance and force it to fill the box the same way the button
+   controls already do, so it's pixel-for-pixel the same shape as the rest
+   of the row. */
+.filter-band-more .filter-box-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  box-sizing: border-box;
+  /* The base .filter-box-select rule sets a fixed height: 20px, sized to
+     match the Trend Display switch-toggle it sits next to in the core row
+     -- taller than a plain .filter-box-value span's natural line box
+     (line-height: 1.2 at the same micro font-size, ~15px), which is what
+     Bundle Depth's box is actually being compared against here. Drop back
+     to auto height so this select's "value line" takes up the same
+     vertical space as every other box's plain-text value line instead of
+     forcing 5px more. */
+  height: auto;
+  min-height: 0;
+}
+.filter-box-range-row {
+  display: flex;
+  gap: 4px;
+}
+.filter-box-range-row .filter-box-select { min-width: 0; flex: 1; }
+
+/* Trend Display toggle: a two-position pill switch instead of a dropdown,
+   living inside the same .filter-box shape as every other control. */
+.switch-toggle {
+  position: relative;
+  display: flex;
+  width: 136px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  padding: 2px;
+  appearance: none;
+  cursor: pointer;
+}
+.switch-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  border-radius: 999px;
+  background: var(--color-blue);
+  transition: transform 0.15s ease;
+}
+.switch-toggle-thumb.is-right { transform: translateX(100%); }
+.switch-toggle-opt {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  color: var(--color-slate);
+}
+/* The thumb is the first child in the markup (so it paints under the text),
+   which means the two label spans are actually the 2nd/3rd children -- a
+   :first-child/:last-child selector here would never match the "Combined"
+   span at all. Using an explicit .is-active modifier (set directly from
+   filters.trendDisplay when rendering) instead of a structural selector. */
+.switch-toggle-opt.is-active { color: #fff; }
+
+.filter-ms { position: relative; display: flex; flex-direction: column; gap: 3px; }
+/* "Split by" checkbox: sits as its own row above the filter's clickable
+   box rather than nested inside the <button> (a checkbox can't validly
+   nest inside a button, and the button's own click-to-open handler would
+   otherwise swallow clicks meant for the checkbox). */
+.split-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-slate);
+  cursor: pointer;
+}
+/* Rendered as a circle (radio-style), not the browser's native square
+   checkbox tick-box: a square reads as "pick any number of these," but
+   Split by is one-at-a-time (checking one un-checks whichever else was
+   active), so the affordance should say that at a glance even though the
+   underlying element is still a <input type="checkbox"> (keeps the existing
+   mutual-exclusion JS and "check again to turn off" behavior unchanged). */
+.split-check input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-slate);
+  background: #fff;
+  cursor: pointer;
+  position: relative;
+  box-sizing: border-box;
+}
+.split-check input:checked {
+  border-color: var(--color-blue);
+  background: var(--color-blue);
+}
+.split-check input:checked::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+.split-check:hover { color: var(--color-ink); }
+.split-check:hover input:not(:checked) { border-color: var(--color-blue); }
+.filter-ms-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(16, 40, 80, 0.14);
+  padding: 8px 10px;
+  min-width: 170px;
+  z-index: 20;
+}
+.filter-ms-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-micro-size);
+  padding: 3px 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ---------------- AI summary ---------------- */
+
+.ai-summary {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--color-blue);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+
+.ai-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-summary-title {
+  font-size: var(--text-subhead-size);
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--color-ink);
+}
+
+/* 2026-07-19: title text dropped the word "AI" (now "Executive Summary"),
+   so this sparkle glyph next to it is what signals the card is
+   AI-generated -- same small-unicode-glyph convention already used
+   elsewhere on the page (info icons, feedback thumbs, panel chevrons). */
+.ai-summary-icon {
+  margin-right: 6px;
+  font-size: var(--text-body-size);
+}
+
+.status-chip {
+  font-size: var(--text-micro-size);
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.status-chip-good { color: var(--color-green); background: var(--color-green-tint); }
+.status-chip-watch { color: #8a5a12; background: #fbf1de; }
+.status-chip-risk { color: var(--color-risk); background: var(--color-risk-tint); }
+
+.ai-summary-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 2026-07-19: align-items changed from baseline to flex-start -- baseline
+   alignment lines the eyebrow label up with the first line of its content,
+   which worked when that content was one sentence but reads oddly now that
+   it's a bulleted list (the eyebrow would sit lower, hugging the first
+   bullet's text baseline instead of the top of the list). */
+.ai-summary-field { display: flex; gap: 14px; align-items: flex-start; }
+
+.ai-summary-eyebrow {
+  flex: 0 0 108px;
+  font-size: var(--text-micro-size);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-slate);
+  /* Nudge down to roughly align with the first bullet's own text (a bullet
+     marker + padding shifts a list's first line down slightly vs. a plain
+     paragraph). */
+  padding-top: 1px;
+}
+
+/* 2026-07-19: each field's content used to be one clustered sentence in a
+   plain div (.ai-summary-text); each idea is now its own <li>, so multiple
+   points within the same topic (e.g. two things that moved, or a driver
+   plus its caveat) read as distinct bullets instead of a run-on sentence. */
+.ai-summary-list {
+  flex: 1;
+  margin: 0;
+  padding-left: 16px;
+  font-size: var(--text-body-size);
+  line-height: 20px;
+  color: var(--color-ink);
+}
+.ai-summary-list li { margin-bottom: 2px; }
+.ai-summary-list li:last-child { margin-bottom: 0; }
+
+.ai-summary-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  gap: 10px;
+}
+
+.ai-cite {
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+  font-style: italic;
+}
+
+.ai-feedback { display: flex; gap: 4px; flex: none; }
+
+.fb-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+.fb-btn.fb-active { background: var(--color-blue-tint); border-color: var(--color-blue); }
+
+/* ---------------- KPI cards ---------------- */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.kpi-card.status-good { border-left-color: var(--color-green); }
+.kpi-card.status-watch { border-left-color: #c98a2b; }
+.kpi-card.status-risk { border-left-color: var(--color-risk); }
+
+.kpi-label {
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--color-slate);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kpi-no-target {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-slate);
+  background: var(--border-soft);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* Plain-language definition on hover -- the certified formula's own
+   numerator/denominator/owner detail lives in the Data Guide panel only
+   (see .source-badge), not duplicated as a second icon on the card. This
+   is the one-sentence "what this metric means" explanation. */
+.kpi-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-slate);
+  opacity: 0.6;
+  cursor: help;
+  white-space: pre-line;
+  /* Padding widens the actual hoverable/clickable area well beyond the
+     glyph itself, so the native title tooltip triggers reliably even if
+     the cursor isn't pixel-perfect on the small "ⓘ" character. */
+  padding: 4px;
+  margin: -4px;
+}
+.kpi-info-icon:hover { opacity: 1; }
+
+.kpi-month {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-slate);
+  margin-top: -3px;
+  margin-bottom: 3px;
+}
+
+.kpi-essence {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-blue);
+  opacity: 0.65;
+  margin-top: -2px;
+  margin-bottom: 2px;
+}
+
+.kpi-value {
+  font-size: var(--text-kpi-size);
+  font-weight: 700;
+  line-height: 36px;
+  color: var(--color-ink);
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+/* Same good/watch/risk read as the card's left-border accent and the gap
+   row below -- at or beyond target reads green, a small shortfall reads
+   orange, a real miss reads red -- so the number itself carries the status
+   at a glance, not just the thin border strip. */
+.kpi-value.status-good { color: var(--color-green); }
+.kpi-value.status-watch { color: #c98a2b; }
+.kpi-value.status-risk { color: var(--color-risk); }
+
+.kpi-sub {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: var(--text-micro-size);
+  font-weight: 600;
+}
+.kpi-target { color: var(--color-slate); }
+.kpi-gap.good { color: var(--color-green); }
+.kpi-gap.watch { color: #8a5a12; }
+.kpi-gap.risk { color: var(--color-risk); }
+
+.kpi-trend-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+.kpi-trend-row {
+  font-size: var(--text-micro-size);
+  font-weight: 700;
+}
+.kpi-trend-row.good { color: var(--color-green); }
+.kpi-trend-row.risk { color: var(--color-risk); }
+.kpi-trend-tag {
+  display: inline-block;
+  min-width: 34px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-slate);
+  margin-right: 4px;
+}
+.kpi-trend-prior {
+  font-weight: 500;
+  color: var(--color-slate);
+}
+.kpi-trend-delta { font-weight: 700; }
+.kpi-trend-delta.good { color: var(--color-green); }
+.kpi-trend-delta.risk { color: var(--color-risk); }
+
+/* ---------------- charts ---------------- */
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.chart-card, .driver-card, .ai-chat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.chart-card-title {
+  font-size: var(--text-subhead-size);
+  font-weight: 700;
+  line-height: 20px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: none;
+}
+.status-dot.status-good { background: var(--color-green); }
+.status-dot.status-watch { background: #c98a2b; }
+.status-dot.status-risk { background: var(--color-risk); }
+
+.single-chart { width: 100%; height: auto; display: block; }
+
+.grid-line { stroke: var(--border-soft); stroke-width: 1; }
+.axis-line { stroke: var(--border); stroke-width: 1; }
+/* Minimum in-chart text size matches the dashboard's own text-dashboard-micro
+   token (11px) so nothing on a chart is smaller than the design system floor —
+   important when this is read on a shared screen rather than up close. */
+.axis-tick { font-size: 11px; fill: var(--color-slate); font-weight: 500; }
+.axis-tick.x { font-size: 10.5px; }
+.axis-title { font-size: 11px; fill: var(--color-slate); font-weight: 600; }
+
+.bar-rect { fill: var(--color-blue); opacity: 0.85; cursor: pointer; }
+.bar-rect:hover { opacity: 1; }
+.bar-datalabel { font-size: 11px; fill: var(--color-blue-dark); font-weight: 700; }
+/* Smaller when every one of a dense (12-week) axis's bars gets its own
+   label, so 12 labels in a row don't visually run together. */
+.bar-datalabel.dense { font-size: 9px; }
+
+.line-path { fill: none; stroke-width: 2.4; }
+.line-datalabel { font-size: 11px; font-weight: 700; }
+.line-datalabel.dense { font-size: 9px; }
+.line-point { cursor: pointer; transition: r 80ms ease; }
+.line-point:hover { r: 6; }
+
+.chart-tooltip {
+  position: fixed;
+  z-index: 60;
+  background: var(--color-ink);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: var(--text-micro-size);
+  line-height: 1.35;
+  box-shadow: 0 6px 18px rgba(16, 40, 80, 0.25);
+  pointer-events: none;
+  max-width: 240px;
+}
+.chart-tooltip-label { font-weight: 600; opacity: 0.85; margin-bottom: 2px; }
+.chart-tooltip-value { font-weight: 700; }
+.chart-tooltip-delta { font-weight: 600; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+.chart-tooltip-delta.good { color: #7BE0A0; }
+.chart-tooltip-delta.risk { color: #F0A6A0; }
+
+.target-band { fill: var(--color-green); opacity: 0.08; }
+.target-line { stroke: var(--color-risk); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.target-label { font-size: 10.5px; fill: var(--color-risk); font-weight: 600; }
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+}
+.legend-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+  background: var(--color-blue);
+}
+.legend-bar { background: var(--color-blue); opacity: 0.85; }
+.legend-target { background: transparent; border-top: 2px dashed var(--color-risk); height: 0; width: 12px; }
+.legend-band { background: var(--color-green); opacity: 0.18; }
+
+/* ---------------- driver / falloff view ---------------- */
+
+.driver-card { margin-bottom: 14px; }
+
+.falloff-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+
+.falloff-row {
+  display: grid;
+  grid-template-columns: 240px 1fr 160px;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A product tab's falloff ranking nests a full .falloff-list inside each
+   narrow .driver-col when Split by a segmentation dimension is active (see
+   renderFalloffSection) -- with Industry's 5 values, each column is much
+   narrower than the 240px label alone. The fixed 3-column grid above was
+   designed for the full-width, unsplit case and simply doesn't fit there:
+   the label/bar/value ran wider than the column and spilled into the next
+   one, reading as overlapping text. Stack the three pieces vertically
+   instead, the same "narrow card" pattern Portfolio's own per-column
+   .driver-col-step already uses for the identical reason. */
+.driver-col .falloff-row {
+  grid-template-columns: 1fr;
+  gap: 3px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.driver-col .falloff-row:last-child { border-bottom: none; padding-bottom: 0; }
+.driver-col .falloff-value { text-align: left; }
+
+.falloff-label {
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--border-soft);
+  color: var(--color-slate);
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 3px;
+}
+
+.friction-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-risk);
+  background: var(--color-risk-tint);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 4px;
+}
+
+.falloff-bar-track {
+  background: var(--border-soft);
+  border-radius: 6px;
+  height: 10px;
+  overflow: hidden;
+}
+.falloff-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+}
+/* Selective color, not decoration: only the step that actually needs
+   attention is colored; everything else stays neutral so it doesn't compete
+   for attention. */
+.falloff-bar-fill.fill-risk { background: var(--color-risk); }
+.falloff-bar-fill.fill-neutral { background: var(--color-slate); opacity: 0.55; }
+
+.falloff-value {
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+  text-align: right;
+  font-weight: 600;
+}
+/* 2026-07-19: the value cell now holds the same significance-colored rate +
+   wk/mo/lost stats card Portfolio's ranking uses (.driver-col-step-rate /
+   .driver-col-step-stats), reused here so the two read identically. Those
+   are block/flex elements, not inline text, so .falloff-value's own
+   text-align doesn't reach them on its own -- the rate line inherits it
+   naturally (it's a plain block of text), but the stats row is a flex
+   container and needs its own justify-content to align to the same side. */
+.falloff-value .driver-col-step-stats { justify-content: flex-end; }
+.driver-col .falloff-value .driver-col-step-stats { justify-content: flex-start; }
+
+/* Per-product falloff breakdown -- shown only when Trend Display is
+   Separated (the combined blended line is the default). The space below
+   the chart splits into four fixed-order horizontal subspaces, one per
+   product (Accounting, Expert, Payments, Bill Pay), each independently
+   ranking that product's own funnel steps by today's falloff. */
+.driver-rank-sub {
+  font-size: var(--text-micro-size);
+  font-weight: 500;
+  color: var(--color-slate);
+  margin-bottom: 8px;
+}
+
+.driver-col-grid {
+  display: grid;
+  /* Adaptive column count -- Portfolio's "by product" split is always 4
+     columns, but a segmentation split (Company Size / Tenure / Industry /
+     Country) can be 2, 3, or 5 depending on the dimension. auto-fit collapses
+     unused tracks to 0 width, so N columns still stretch evenly to fill the
+     row; minmax keeps columns from getting too narrow when N is larger. */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.driver-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+/* When a product tab's falloff list is split by segment, each segment gets
+   its own .falloff-list nested inside a .driver-col. The default top
+   divider (margin/border) on .falloff-list would duplicate the .driver-col-
+   title's own top border directly above it, so strip it in this context. */
+.driver-col .falloff-list { margin-top: 0; padding-top: 0; border-top: none; }
+
+.driver-col-title {
+  font-size: var(--text-label-size);
+  font-weight: 700;
+  color: var(--color-ink);
+  border-top: 3px solid;
+  padding-top: 8px;
+}
+
+.driver-col-step {
+  background: var(--border-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.driver-col-step-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px; }
+.driver-col-step-rank { font-size: 10px; font-weight: 700; color: var(--color-slate); }
+.driver-col-step-name { font-size: var(--text-micro-size); font-weight: 600; color: var(--color-ink); }
+
+.driver-col-step-rate { font-size: var(--text-label-size); font-weight: 700; margin-bottom: 4px; }
+.driver-col-step-rate.good { color: var(--color-green); }
+.driver-col-step-rate.watch { color: #8a5a12; }
+.driver-col-step-rate.risk { color: var(--color-risk); }
+
+.driver-col-step-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-slate);
+}
+.driver-col-step-stats .good { color: var(--color-green); }
+.driver-col-step-stats .risk { color: var(--color-risk); }
+
+/* ---------------- AI chat ---------------- */
+
+.ai-chat-card { margin-bottom: 14px; }
+
+.ai-chat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.ai-chat-toggle-hint {
+  font-size: var(--text-micro-size);
+  font-weight: 600;
+  color: var(--color-blue);
+}
+
+.ai-chat-body { margin-top: 8px; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.chip {
+  border: 1px solid #cfe0f9;
+  background: var(--color-blue-tint);
+  color: var(--color-blue-dark);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: var(--text-micro-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip:hover { background: #d9e8fc; }
+/* 2026-07-19: scope-clarification chips (Portfolio + each product) reuse
+   the same chip shape/color as suggested questions -- they ARE the answer
+   set for "portfolio or which product?", so borrowing the same "click me"
+   affordance is intentional -- just bolded a touch further to read as the
+   thing to act on right now, not just an idea for what to ask next. */
+.chip-scope { font-weight: 700; border-color: var(--color-blue); }
+
+.chat-thread {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+  margin-bottom: 10px;
+}
+
+.chat-msg { display: flex; flex-direction: column; max-width: 78%; }
+.chat-user { align-self: flex-end; align-items: flex-end; }
+.chat-ai { align-self: flex-start; align-items: flex-start; }
+
+.chat-bubble {
+  font-size: var(--text-body-size);
+  line-height: 20px;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+.chat-user .chat-bubble { background: var(--color-blue); color: #fff; border-bottom-right-radius: 3px; }
+.chat-ai .chat-bubble { background: var(--bg-page); color: var(--color-ink); border-bottom-left-radius: 3px; }
+.chat-ai .chat-bubble.chat-boundary { background: var(--color-risk-tint); color: var(--color-risk); font-style: italic; }
+/* 2026-07-19: a scope-clarification message ("portfolio or which
+   product?") is a follow-up question, not a refusal -- gets its own
+   neutral blue tint (the same blue used for chips/interactive elements)
+   instead of chat-boundary's red "can't help with that" styling, and
+   stays upright (not italic) since nothing's being flagged as out of
+   bounds. */
+.chat-ai .chat-bubble.chat-clarify { background: var(--color-blue-tint); color: var(--color-blue-dark); }
+
+.chat-cite {
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+  font-family: "SF Mono", Menlo, monospace;
+  margin-top: 3px;
+}
+
+.chat-fb { display: flex; gap: 4px; margin-top: 3px; }
+
+.chat-input-row { display: flex; gap: 8px; }
+#chat-input {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: var(--text-body-size);
+}
+.chat-send {
+  border: none;
+  background: var(--color-blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: var(--text-label-size);
+  border-radius: 8px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.chat-send:hover { background: var(--color-blue-dark); }
+
+/* ---------------- trust footer ---------------- */
+
+.trust-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+/* ---------------- responsive ---------------- */
+
+@media (max-width: 980px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .chart-grid { grid-template-columns: 1fr; }
+  .falloff-row { grid-template-columns: 1fr; }
+  .falloff-value { text-align: left; }
+  .driver-col-grid { grid-template-columns: 1fr 1fr; }
+}
