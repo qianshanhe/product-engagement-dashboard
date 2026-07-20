@@ -297,16 +297,24 @@
 
   const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+  // 2026-07-20 axis-label format change (per direct request): week-grain
+  // labels are "M/D/YY" (e.g. "7/19/26" -- month/day NOT zero-padded, 2-digit
+  // year) and month-grain labels are "MM/YY" (e.g. "06/26" -- month IS
+  // zero-padded here, unlike the week format -- matches the two example
+  // strings given exactly, not a single shared date format). Both feed
+  // toGrain()'s chart axis labels; fmtWeekLabel also feeds the chat's trend-
+  // answer date span and fmtMonthLabel also feeds the KPI card's own month
+  // tag, so both surfaces pick up the same format for consistency.
   function fmtWeekLabel(dateStr) {
     const d = new Date(dateStr + "T00:00:00");
-    return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}`;
+    return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
   }
   function fmtMonthKey(dateStr) {
     return dateStr.slice(0, 7);
   }
   function fmtMonthLabel(monthKey) {
     const [y, m] = monthKey.split("-");
-    return `${MONTH_ABBR[parseInt(m, 10) - 1]} '${y.slice(2)}`;
+    return `${m}/${y.slice(2)}`;
   }
 
   // Anchor the demo to "today" (whenever this file is actually opened) rather
@@ -339,10 +347,59 @@
 
   /* ---------------- synthetic series generation ---------------- */
 
-  function seriesFor(base, trend, amp, phase, n) {
+  // Deterministic pseudo-random noise (2026-07-20, per direct feedback: the
+  // pure trend+sine curve was too smooth to show real MoM/QoQ business
+  // fluctuation). Deliberately NOT Math.random() -- a seeded generator keeps
+  // every reload byte-identical, which matters both for the live demo (the
+  // Executive Summary/chat numbers shouldn't change every time the page is
+  // opened) and for test-run.js (assertions need reproducible values). Seeded
+  // per product+metric (see buildData below) so different series don't share
+  // an identical noise pattern just because they happen to share a CONFIG
+  // phase value.
+  function hashSeed(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    return h >>> 0;
+  }
+  function seededRandom(seed) {
+    let t = seed >>> 0;
+    return function () {
+      t = (t + 0x6d2b79f5) | 0;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // One noise value per week, scaled to `amplitude`. Blends 65% fresh
+  // randomness with 35% of the prior week's value (a light AR(1) blend) so
+  // consecutive weeks wobble up and down organically -- like real week-to-
+  // week business noise -- rather than jittering independently every week
+  // like static.
+  function noiseSeries(n, seed, amplitude) {
+    const rand = seededRandom(seed);
+    const out = [];
+    let prev = 0;
+    for (let i = 0; i < n; i++) {
+      const raw = rand() * 2 - 1;
+      const v = raw * amplitude * 0.65 + prev * 0.35;
+      out.push(v);
+      prev = v;
+    }
+    return out;
+  }
+
+  function seriesFor(base, trend, amp, phase, n, seedStr) {
+    // Noise amplitude ties partly to |trend|, not just amp: a series with a
+    // steep underlying slope (e.g. Bill Pay's declining Habit Formation,
+    // trend -0.68pt/wk) needs proportionally more noise than a flat one to
+    // actually show a local up-tick against that slope -- amp alone (the
+    // seasonal wave's size) wasn't enough to ever reverse a steep trend, so
+    // every steep-trend series still rendered as a smooth monotonic line.
+    const amplitude = amp * 0.8 + Math.abs(trend) * 1.5;
+    const noise = seedStr ? noiseSeries(n, hashSeed(seedStr), amplitude) : null;
     const out = [];
     for (let i = 0; i < n; i++) {
-      out.push(base + trend * i + amp * Math.sin((i + phase) / 3.2));
+      out.push(base + trend * i + amp * Math.sin((i + phase) / 3.2) + (noise ? noise[i] : 0));
     }
     return out;
   }
@@ -530,10 +587,12 @@
       // KPIS (not a KPI card anymore, per M1/M16) -- it's still needed as the
       // portfolio blend weight and to reconcile against the falloff funnel.
       const ae = CONFIG[p.id].active_engaged;
-      productData[p.id].active_engaged = seriesFor(ae.base, ae.trend, ae.amp, ae.phase, WEEKS.length).map((v) => Math.max(0, v));
+      productData[p.id].active_engaged = seriesFor(ae.base, ae.trend, ae.amp, ae.phase, WEEKS.length, `${p.id}:active_engaged`).map((v) =>
+        Math.max(0, v)
+      );
       KPIS.forEach((k) => {
         const c = CONFIG[p.id][k.id];
-        productData[p.id][k.id] = seriesFor(c.base, c.trend, c.amp, c.phase, WEEKS.length).map((v) =>
+        productData[p.id][k.id] = seriesFor(c.base, c.trend, c.amp, c.phase, WEEKS.length, `${p.id}:${k.id}`).map((v) =>
           k.unit === "pct" ? clamp(v, 1, 99) : Math.max(0, v)
         );
         if (c.target != null) targets[p.id][k.id] = c.target;
@@ -649,12 +708,19 @@
     return FALLOFF_BASE[productId].map((s, stepIdx) => {
       const baseAbandonRate = 1 - s.completed / s.entered;
       const currentAdj = clamp(baseAbandonRate / clamp(rateMult, 0.4, 1.8), 0.02, 0.85) * 100;
+      // 2026-07-20: swapped the fixed-amplitude deterministic sine wobble for
+      // the same seeded noise used for the KPI trend lines -- the old 0.5-pt
+      // sine could land near-monotonic across a 12-week window depending on
+      // stepIdx's phase offset (no guaranteed reversal), and didn't scale
+      // with drift the way seriesFor's noise now scales with trend. Seeded
+      // per product+step so each funnel step wobbles independently.
+      const wobbleSeries = noiseSeries(WEEKS.length, hashSeed(`${productId}:falloff:${stepIdx}`), 0.8 + Math.abs(drift) * 3);
       const series = WEEKS.map((w, i) => {
         const weeksAgo = WEEKS.length - 1 - i;
         // No wobble at weeksAgo === 0: the most recent point must equal
         // currentAdj exactly, so the trend line's last point never drifts
         // from the ranked list's "today" number.
-        const wobble = weeksAgo === 0 ? 0 : 0.5 * Math.sin((weeksAgo + stepIdx * 1.7) / 2.4);
+        const wobble = weeksAgo === 0 ? 0 : wobbleSeries[i];
         return clamp(currentAdj - drift * weeksAgo + wobble, 2, 90);
       });
       return { step: s.step, series };
