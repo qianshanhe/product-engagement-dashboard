@@ -3556,7 +3556,15 @@
     view.filters = filters;
     view.filtersRaw = filters;
 
-    const summary = buildAiSummary(tabId, view);
+    // 2026-07-20 (per direct feedback): the Executive Summary and "Ask the
+    // Dashboard" Q&A are built from `baseline` -- a separate view computed
+    // off defaultFilters(tabId) via viewForScope, NOT the live, active
+    // `view` above -- so their narrative stays constant regardless of
+    // whatever Time Range/segment/product filters are currently applied.
+    // The KPI cards, pillars, and falloff section below still use the
+    // filtered `view` and remain fully interactive, unchanged.
+    const baseline = viewForScope(tabId);
+    const summary = buildAiSummary(tabId, baseline);
 
     root.innerHTML = `
       <header class="app-header">
@@ -3587,17 +3595,24 @@
         <div class="kpi-row">${view.kpiCards.map((c) => kpiCardHtml(c)).join("")}</div>
         ${renderPillars(tabId, view)}
         ${renderFalloffSection(tabId, view)}
-        ${renderChat(tabId, view)}
+        ${renderChat(tabId, baseline)}
       </main>
 
       ${renderTrustFooter()}
     `;
 
-    wireEvents(tabId, filters, view);
+    wireEvents(tabId, filters, baseline);
   }
 
   /* ---------------- event wiring ---------------- */
 
+  // Note: the `view` parameter here is only ever used for the two
+  // askAndRender(...) calls below (chip clicks, chat form submit) -- every
+  // other handler reads/mutates `filters` (the live, active filters object)
+  // or `state` directly. renderApp() now passes `baseline` (the
+  // filter-independent view) here, not the interactive `view`, so the chat
+  // widget's answers stay decoupled from whatever's currently filtered --
+  // see viewForScope's 2026-07-20 comment for why.
   function wireEvents(tabId, filters, view) {
     root.querySelectorAll("[data-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -3797,9 +3812,29 @@
   // the same way the mentioned-product switch below does -- shared so the
   // clarification-resolution path and the direct-mention path build the
   // view identically.
+  //
+  // 2026-07-20 (per direct feedback -- noticed the Executive Summary
+  // narrative changed when Company Size was filtered to Mid-Market only):
+  // this now ALWAYS builds the view from defaultFilters(scope), not
+  // state.filtersByTab[scope]. Every call site of viewForScope is inside
+  // the AI/chat subsystem (never the KPI cards/charts, which intentionally
+  // DO react to filters via their own separate computePortfolioTab/
+  // computeProductTab calls in renderApp using the live, active filters) --
+  // so this single change makes the Executive Summary and "Ask the
+  // Dashboard" Q&A permanently describe the full certified population,
+  // regardless of Time Range, View Grain, Trend Display, segment filters,
+  // product-specific plan filters, or product selection currently active
+  // on screen. Also now stamps .filters/.filtersRaw with those baseline
+  // filters (previously only renderApp did this, for the interactive
+  // view) -- driverBundleForCard's segment-lens helpers read view.filters
+  // to know which segment is already "pinned," and need that to reflect
+  // the baseline, not whatever's active on screen.
   function viewForScope(scope) {
-    const filters = state.filtersByTab[scope];
-    return scope === "portfolio" ? computePortfolioTab(filters) : computeProductTab(scope, filters);
+    const filters = defaultFilters(scope);
+    const v = scope === "portfolio" ? computePortfolioTab(filters) : computeProductTab(scope, filters);
+    v.filters = filters;
+    v.filtersRaw = filters;
+    return v;
   }
 
   function scopeLabelFor(scope) {
@@ -3877,9 +3912,9 @@
     }
 
     // If the question names a specific product that isn't the open tab,
-    // switch to that product's tab and answer from its own (freshly
-    // computed) view -- so the visible KPI cards/falloff table always match
-    // what the AI just cited, instead of answering off-screen data.
+    // switch to that product's tab so the visible KPI cards/falloff table
+    // match which product the AI is now discussing, instead of answering
+    // for a different product than what's on screen.
     const mentioned = detectMentionedProduct(question);
 
     // 2026-07-19: a recognized metric/topic question that names neither a
@@ -3902,8 +3937,11 @@
     if (mentioned && mentioned !== tabId) {
       answerTabId = mentioned;
       state.tab = mentioned;
-      const mentionedFilters = state.filtersByTab[mentioned];
-      answerView = computeProductTab(mentioned, mentionedFilters);
+      // 2026-07-20: viewForScope(...) (not computeProductTab(mentioned,
+      // state.filtersByTab[mentioned])) -- the AI's answer must stay
+      // filter-independent even after a tab switch, same as every other
+      // path into answerQuestion.
+      answerView = viewForScope(mentioned);
       switchNote = `Switched to the ${PRODUCT_BY_ID[mentioned].short} tab to answer this -- you were viewing ${tabId === "portfolio" ? "Portfolio" : PRODUCT_BY_ID[tabId].short}. `;
     } else if (!mentioned && detectPortfolioMention(question) && tabId !== "portfolio") {
       // 2026-07-20 (bug found while verifying the Q&A/Executive Summary
