@@ -647,6 +647,55 @@ html, body {
 }
 .fb-btn.fb-active { background: var(--color-blue-tint); border-color: var(--color-blue); }
 
+/* 2026-07-20: written-feedback affordance next to the thumbs up/down --
+   deliberately its own class (not .fb-btn) so the generic "clear siblings,
+   select me" handler on .fb-btn doesn't clear the thumbs selection when
+   this is clicked, and clicking a thumb doesn't collapse this. */
+.fb-comment-toggle {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+.fb-comment-toggle.fb-active { background: var(--color-blue-tint); border-color: var(--color-blue); }
+
+.fb-comment-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.fb-comment-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: var(--text-body-size);
+  font-family: inherit;
+}
+.fb-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.fb-comment-submit {
+  border: 1px solid var(--color-blue);
+  background: var(--color-blue);
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.fb-comment-thanks {
+  font-size: var(--text-micro-size);
+  color: var(--color-slate);
+  font-style: italic;
+}
+
 /* ---------------- KPI cards ---------------- */
 
 .kpi-row {

@@ -2364,7 +2364,31 @@
   const TREND_RE =
     /\btrend\b|\bover (the )?(past|last)\b|\b(past|last)\s+\d+\s*(day|week|month|quarter|year)s?\b|\b(increase|increasing|increased|rose|rising|risen|went up|going up|go up|climb|climbing|climbed|improve|improved|improving)\b|\b(decrease|decreasing|decreased|fell|falling|fallen|went down|going down|go down|drop|dropped|dropping|declin|worsen)\b|\bup or down\b|\bchange(d)? over\b/;
 
-  function trendAnswer(scopeLabel, metricName, card, weeks, citeStr) {
+  // 2026-07-20 (per direct feedback -- the Q&A widget's trend answers read
+  // as contradicting the Executive Summary, which already states a
+  // wk-over-wk trend alongside its driver). driverLineWithCite(...) below
+  // calls the SAME driverBundleForCard(...) function the Executive Summary
+  // card uses to build its "Likely Reason" bullets, so the driver+trend
+  // sentence handed to trendAnswer here is never a re-derived, potentially
+  // diverging fact -- it's the literal same text, same numbers, same
+  // vsWeek-based trend clause. trendAnswer's own job stays narrower and
+  // distinct: describing the *displayed multi-week window's* start-to-end
+  // movement (something driverBundleForCard doesn't compute at all, since
+  // its trend clause is a single wk-over-wk delta, not a whole-window
+  // read) -- so the two facts are complementary, not overlapping, and the
+  // caveat now says so explicitly instead of claiming no driver/trend
+  // linkage exists anywhere.
+  function driverLineWithCite(tabId, view, card) {
+    const bundle = driverBundleForCard(tabId, view, card);
+    const citeTokens = [citeToken(tabId, card.kpi.id)];
+    if (bundle.citesFalloff) citeTokens.push("workflow_falloff");
+    return {
+      text: bundle.lines.join(" "),
+      cites: `${citeTokens.map((t) => "\`" + t + "\`").join(", ")} · refreshed ${REFRESH_TS} · reconciled to dashboard`,
+    };
+  }
+
+  function trendAnswer(scopeLabel, metricName, card, weeks, citeStr, driverText) {
     const series = card.series;
     if (!series || series.length < 2) return null;
     const startVal = series[0];
@@ -2373,8 +2397,12 @@
     const dir = delta > 0.3 ? "rose" : delta < -0.3 ? "fell" : "was roughly flat";
     const spanLabel = `${fmtWeekLabel(weeks[0])}–${fmtWeekLabel(weeks[weeks.length - 1])}`;
     const deltaTxt = delta > 0.3 || delta < -0.3 ? `, moving ${pts(delta)}` : "";
+    const windowText = `${scopeLabel} ${metricName} ${dir} over the displayed ${weeks.length}-week window (${spanLabel})${deltaTxt}, from ${pct(startVal)} to ${pct(endVal)}.`;
+    const caveat = driverText
+      ? ` ${driverText} That week-over-week trend is the same driver trend the Executive Summary card states for this metric -- a dedicated decomposition of the full ${weeks.length}-week window into a single cause doesn't exist yet, so treat the window read above as directional, not attributed.`
+      : ` This dashboard's driver analysis is built for the current-period gap-vs-target view -- it doesn't yet decompose a positive or negative multi-week trend to a single driver, so treat this as the directional read from the chart, not an attributed cause.`;
     return {
-      text: `${scopeLabel} ${metricName} ${dir} over the displayed ${weeks.length}-week window (${spanLabel})${deltaTxt}, from ${pct(startVal)} to ${pct(endVal)}. This dashboard's driver analysis is built for the current-period gap-vs-target view -- it doesn't yet decompose a positive or negative multi-week trend to a single driver, so treat this as the directional read from the chart, not an attributed cause.`,
+      text: windowText + caveat,
       cites: citeStr,
     };
   }
@@ -2395,6 +2423,25 @@
     "layoff",
     "headcount",
     "stock price",
+    // 2026-07-20 (per direct feedback): this dashboard's driver analysis is
+    // built entirely off certified historical/current-period workflow
+    // counts -- there's no forecasting model anywhere in the data layer, so
+    // a forward-looking question shouldn't get an answer that quietly
+    // restates the current period's numbers as if it addressed "what will
+    // happen." Caught here, at the very top of both answerQuestion and
+    // askAndRender, so it's refused before the scope-clarification prompt
+    // even fires -- no point asking "portfolio or which product?" for a
+    // question that's going to be refused either way.
+    "forecast",
+    "predict",
+    "projection",
+    "projected",
+    "next month",
+    "next quarter",
+    "next week",
+    "next year",
+    "what will",
+    "going to be",
   ];
   const OUT_OF_SCOPE_RESPONSE =
     "I can't answer that from this governed dashboard because it is outside the certified Product Engagement metric scope. I can help with activation, job completion, habit formation, deepening, falloff, targets, and certified driver analysis.";
@@ -2430,53 +2477,51 @@
 
     if (topic === "deepening") {
       const scopeLabel = tabId === "portfolio" ? "Portfolio (blended)" : PRODUCT_BY_ID[tabId].short;
-      const deepeningCite = `\`${citeToken(tabId, "deepening_rate")}\` · refreshed ${REFRESH_TS} · reconciled to dashboard`;
+      const driver = driverLineWithCite(tabId, view, deepeningCard);
       if (TREND_RE.test(q)) {
-        const t = trendAnswer(scopeLabel, "Deepening Rate", deepeningCard, view.weeks, deepeningCite);
+        const t = trendAnswer(scopeLabel, "Deepening Rate", deepeningCard, view.weeks, driver.cites, driver.text);
         if (t) return t;
       }
       return {
-        text: `${scopeLabel} Deepening Rate is ${pct(deepeningCard.current)}${deepeningCard.target != null ? ` vs. ${pct(deepeningCard.target)} target (${pts(deepeningCard.gap)})` : ""}, moving ${pts(deepeningCard.movement)} vs. prior period. This measures the share of active customers who have adopted at least one additional product beyond their primary one.`,
-        cites: deepeningCite,
+        text: `${scopeLabel} Deepening Rate is ${pct(deepeningCard.current)}${deepeningCard.target != null ? ` vs. ${pct(deepeningCard.target)} target (${pts(deepeningCard.gap)})` : ""}, moving ${pts(deepeningCard.movement)} vs. prior period. This measures the share of active customers who have adopted at least one additional product beyond their primary one. ${driver.text}`,
+        cites: driver.cites,
       };
     }
     if (topic === "habit") {
       const scopeLabel = tabId === "portfolio" ? "Portfolio (blended)" : PRODUCT_BY_ID[tabId].short;
-      const habitCite = `\`${citeToken(tabId, "habit_formation")}\` · refreshed ${REFRESH_TS} · reconciled to dashboard`;
+      const driver = driverLineWithCite(tabId, view, habitCard);
       if (TREND_RE.test(q)) {
-        const t = trendAnswer(scopeLabel, "Habit Formation", habitCard, view.weeks, habitCite);
+        const t = trendAnswer(scopeLabel, "Habit Formation", habitCard, view.weeks, driver.cites, driver.text);
         if (t) return t;
       }
-      const d = ordinalDriver(Object.assign({ productId: tabId }, view));
       const gapTxt = habitCard.gap != null ? pts(habitCard.gap) : "n/a";
       return {
-        text: `${scopeLabel} Habit Formation is ${pct(habitCard.current)}${habitCard.target != null ? ` vs. ${pct(habitCard.target)} target (${gapTxt})` : ""}. The largest driver is ${d.step} falloff (${d.product}), contributing an estimated ${pts(-d.abandonRate * 10)} to the gap, concentrated among newer customers. This is a scenario estimate based on certified workflow counts, not causal proof.`,
-        cites: `\`${citeToken(tabId, "habit_formation")}\`, \`${d.step.toLowerCase().replace(/\s+/g, "_")}_falloff\` · refreshed ${REFRESH_TS} · reconciled to dashboard`,
+        text: `${scopeLabel} Habit Formation is ${pct(habitCard.current)}${habitCard.target != null ? ` vs. ${pct(habitCard.target)} target (${gapTxt})` : ""}. ${driver.text} This is a scenario estimate based on certified workflow counts, not causal proof.`,
+        cites: driver.cites,
       };
     }
     if (topic === "activation") {
       const scopeLabel = tabId === "portfolio" ? "Portfolio (blended)" : PRODUCT_BY_ID[tabId].short;
-      const activationCite = `\`${citeToken(tabId, "activation_rate")}\` · refreshed ${REFRESH_TS} · reconciled to dashboard`;
+      const driver = driverLineWithCite(tabId, view, activationCard);
       if (TREND_RE.test(q)) {
-        const t = trendAnswer(scopeLabel, "Activation Rate", activationCard, view.weeks, activationCite);
+        const t = trendAnswer(scopeLabel, "Activation Rate", activationCard, view.weeks, driver.cites, driver.text);
         if (t) return t;
       }
       return {
-        text: `${scopeLabel} Activation Rate is ${pct(activationCard.current)}${activationCard.target != null ? ` vs. ${pct(activationCard.target)} target (${pts(activationCard.gap)})` : ""}, moving ${pts(activationCard.movement)} vs. prior period. This measures the share of new customers who reach first value in the product. No computed driver decomposition exists yet for this metric.`,
-        cites: activationCite,
+        text: `${scopeLabel} Activation Rate is ${pct(activationCard.current)}${activationCard.target != null ? ` vs. ${pct(activationCard.target)} target (${pts(activationCard.gap)})` : ""}, moving ${pts(activationCard.movement)} vs. prior period. This measures the share of new customers who reach first value in the product. ${driver.text}`,
+        cites: driver.cites,
       };
     }
     if (topic === "core_completion") {
       const scopeLabel = tabId === "portfolio" ? "Portfolio (blended)" : PRODUCT_BY_ID[tabId].short;
-      const coreCite = `\`${citeToken(tabId, "core_job_completion")}\` · refreshed ${REFRESH_TS} · reconciled to dashboard`;
+      const driver = driverLineWithCite(tabId, view, coreCard);
       if (TREND_RE.test(q)) {
-        const t = trendAnswer(scopeLabel, "Core Job Completion", coreCard, view.weeks, coreCite);
+        const t = trendAnswer(scopeLabel, "Core Job Completion", coreCard, view.weeks, driver.cites, driver.text);
         if (t) return t;
       }
-      const dCore = ordinalDriver(Object.assign({ productId: tabId }, view));
       return {
-        text: `${scopeLabel} Core Job Completion is ${pct(coreCard.current)}${coreCard.target != null ? ` vs. ${pct(coreCard.target)} target (${pts(coreCard.gap)})` : ""}, moving ${pts(coreCard.movement)} vs. prior period. The largest driver is ${dCore.step} falloff (${dCore.product}), affecting roughly ${compactNum(dCore.abandoned)} customers. This is a scenario estimate based on certified workflow counts, not causal proof.`,
-        cites: `\`${citeToken(tabId, "core_job_completion")}\`, \`${dCore.step.toLowerCase().replace(/\s+/g, "_")}_falloff\` · refreshed ${REFRESH_TS} · reconciled to dashboard`,
+        text: `${scopeLabel} Core Job Completion is ${pct(coreCard.current)}${coreCard.target != null ? ` vs. ${pct(coreCard.target)} target (${pts(coreCard.gap)})` : ""}, moving ${pts(coreCard.movement)} vs. prior period. ${driver.text} This is a scenario estimate based on certified workflow counts, not causal proof.`,
+        cites: driver.cites,
       };
     }
     if (topic === "falloff") {
@@ -2788,7 +2833,14 @@
           <span class="ai-feedback" data-feedback="ai-summary">
             <button type="button" class="fb-btn" data-fb="up" aria-label="Good">\u{1F44D}</button>
             <button type="button" class="fb-btn" data-fb="down" aria-label="Issue">\u{1F44E}</button>
+            <button type="button" class="fb-comment-toggle" data-fb-comment-toggle="ai-summary" aria-label="Add written feedback" aria-expanded="false" title="Add written feedback">\u{1F4AC}</button>
           </span>
+        </div>
+        <div class="fb-comment-box" data-fb-comment-box="ai-summary" hidden>
+          <textarea class="fb-comment-input" placeholder="What would make this more useful?" rows="2"></textarea>
+          <div class="fb-comment-actions">
+            <button type="button" class="fb-comment-submit" data-fb-comment-submit="ai-summary">Submit feedback</button>
+          </div>
         </div>
       </div>`;
   }
@@ -3389,7 +3441,7 @@
     return `
       <div class="ai-chat-card">
         <button type="button" class="ai-chat-toggle" data-chat-toggle="1">
-          <span class="chart-card-title">Ask the Dashboard — Governed AI Q&amp;A</span>
+          <span class="chart-card-title"><span class="ai-summary-icon" aria-hidden="true" title="AI-generated">✨</span>Ask the Dashboard</span>
           <span class="ai-chat-toggle-hint">${isOpen ? "Hide ▴" : `${messages.length / 2} exchange${messages.length > 2 ? "s" : ""} · Open ▾`}</span>
         </button>
         <div class="ai-chat-body" ${isOpen ? "" : "hidden"}>
@@ -3403,7 +3455,21 @@
               <div class="chat-msg chat-${m.role}">
                 <div class="chat-bubble ${m.boundary ? "chat-boundary" : ""} ${m.clarification ? "chat-clarify" : ""}">${m.text}</div>
                 ${m.role === "ai" && !m.boundary && !m.clarification ? `<div class="chat-cite">${m.cites || ""}</div>` : ""}
-                ${m.role === "ai" ? `<div class="chat-fb" data-fb-idx="${i}"><button type="button" class="fb-btn" data-fb="up">\u{1F44D}</button><button type="button" class="fb-btn" data-fb="down">\u{1F44E}</button></div>` : ""}
+                ${
+                  m.role === "ai"
+                    ? `<div class="chat-fb" data-fb-idx="${i}">
+                    <button type="button" class="fb-btn" data-fb="up">\u{1F44D}</button>
+                    <button type="button" class="fb-btn" data-fb="down">\u{1F44E}</button>
+                    <button type="button" class="fb-comment-toggle" data-fb-comment-toggle="chat-${tabId}-${i}" aria-label="Add written feedback" aria-expanded="false" title="Add written feedback">\u{1F4AC}</button>
+                  </div>
+                  <div class="fb-comment-box" data-fb-comment-box="chat-${tabId}-${i}" hidden>
+                    <textarea class="fb-comment-input" placeholder="What would make this more useful?" rows="2"></textarea>
+                    <div class="fb-comment-actions">
+                      <button type="button" class="fb-comment-submit" data-fb-comment-submit="chat-${tabId}-${i}">Submit feedback</button>
+                    </div>
+                  </div>`
+                    : ""
+                }
               </div>`
               )
               .join("")}
@@ -3675,6 +3741,51 @@
         btn.classList.add("fb-active");
       });
     });
+
+    // 2026-07-20 (per direct feedback): a third icon next to thumbs up/down
+    // expands into a free-text box, so a reviewer can say WHY something was
+    // good/bad rather than only signaling good/bad. Deliberately a plain
+    // DOM toggle (not routed through state + renderApp()), matching how the
+    // thumbs buttons above already work -- both are ephemeral UI state that
+    // resets on the next full re-render, not something this demo persists
+    // visibly. `state.feedbackLog` (declared in initial state but unused
+    // until now) is where a submitted comment actually lands, giving it a
+    // real purpose consistent with the "governed/reconciled" framing
+    // elsewhere in this dashboard, even though nothing reads it back out.
+    root.querySelectorAll(".fb-comment-toggle").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-fb-comment-toggle");
+        const box = root.querySelector(`[data-fb-comment-box="${key}"]`);
+        if (!box) return;
+        const opening = box.hasAttribute("hidden");
+        if (opening) {
+          box.removeAttribute("hidden");
+          btn.setAttribute("aria-expanded", "true");
+          btn.classList.add("fb-active");
+          const ta = box.querySelector(".fb-comment-input");
+          if (ta) ta.focus();
+        } else {
+          box.setAttribute("hidden", "");
+          btn.setAttribute("aria-expanded", "false");
+          btn.classList.remove("fb-active");
+        }
+      });
+    });
+    root.querySelectorAll(".fb-comment-submit").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-fb-comment-submit");
+        const box = root.querySelector(`[data-fb-comment-box="${key}"]`);
+        if (!box) return;
+        const ta = box.querySelector(".fb-comment-input");
+        const text = ta ? ta.value.trim() : "";
+        if (!text) {
+          if (ta) ta.focus();
+          return;
+        }
+        state.feedbackLog.push({ key, text, ts: Date.now() });
+        box.innerHTML = `<div class="fb-comment-thanks">Thanks — your feedback was noted.</div>`;
+      });
+    });
   }
 
   function scrollChatThread() {
@@ -3794,6 +3905,21 @@
       const mentionedFilters = state.filtersByTab[mentioned];
       answerView = computeProductTab(mentioned, mentionedFilters);
       switchNote = `Switched to the ${PRODUCT_BY_ID[mentioned].short} tab to answer this -- you were viewing ${tabId === "portfolio" ? "Portfolio" : PRODUCT_BY_ID[tabId].short}. `;
+    } else if (!mentioned && detectPortfolioMention(question) && tabId !== "portfolio") {
+      // 2026-07-20 (bug found while verifying the Q&A/Executive Summary
+      // alignment fix above): an explicit "portfolio" mention with no
+      // product name previously only suppressed the scope-clarification
+      // prompt -- it never actually switched off whatever product tab was
+      // open, unlike detectMentionedProduct's branch above, so "portfolio
+      // deepening rate" asked while on the Bill Pay tab silently answered
+      // with Bill Pay's own view and no switch note. Mirror the
+      // product-mention branch exactly, using the same viewForScope(...)
+      // helper the clarification-resolution path already uses for
+      // "portfolio".
+      answerTabId = "portfolio";
+      state.tab = "portfolio";
+      answerView = viewForScope("portfolio");
+      switchNote = `Switched to the Portfolio tab to answer this -- you were viewing ${PRODUCT_BY_ID[tabId].short}. `;
     }
     const a = answerQuestion(answerTabId, answerView, question);
     pushExchange(answerTabId, question, Object.assign({}, a, { text: switchNote + a.text }));
