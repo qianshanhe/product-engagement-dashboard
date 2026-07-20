@@ -1599,7 +1599,14 @@
       s += `<text x="${xC(i)}" y="${(yBar(v) - 6).toFixed(1)}" text-anchor="middle" class="bar-datalabel${dense}">${compactNum(v)}</text>`;
     });
 
+    // 2026-07-20: the week-grain "M/D/YY" label format (e.g. "7/19/26") is
+    // noticeably wider than the old "MMM D" format it replaced -- at 12
+    // weekly ticks (the `dense` threshold above) every label no longer fits
+    // in its ~40px slot and adjacent labels started overlapping into
+    // unreadable text. Thin to every other tick in dense mode, anchored to
+    // always keep the most recent week (the "today" point) labeled.
     labels.forEach((lb, i) => {
+      if (n >= 10 && (n - 1 - i) % 2 === 1) return;
       s += `<text x="${xC(i).toFixed(1)}" y="${H - 10}" text-anchor="middle" class="axis-tick x">${lb}</text>`;
     });
     s += `<text x="${padL}" y="12" class="axis-title">${axisLabel}</text>`;
@@ -1719,7 +1726,14 @@
       }
     });
 
+    // 2026-07-20: the week-grain "M/D/YY" label format (e.g. "7/19/26") is
+    // noticeably wider than the old "MMM D" format it replaced -- at 12
+    // weekly ticks (the `dense` threshold above) every label no longer fits
+    // in its ~40px slot and adjacent labels started overlapping into
+    // unreadable text. Thin to every other tick in dense mode, anchored to
+    // always keep the most recent week (the "today" point) labeled.
     labels.forEach((lb, i) => {
+      if (n >= 10 && (n - 1 - i) % 2 === 1) return;
       s += `<text x="${xC(i).toFixed(1)}" y="${H - 10}" text-anchor="middle" class="axis-tick x">${lb}</text>`;
     });
     s += `<text x="${padL}" y="12" class="axis-title">${axisLabel}</text>`;
