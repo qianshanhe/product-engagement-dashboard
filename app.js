@@ -954,14 +954,73 @@
     },
   };
 
-  function combineDim(dimKey, selected) {
-    const opts = FILTER_DIMS[dimKey].options;
+  // Per-product-only filter dimensions (2026-07-20, per direct request): a
+  // Plan/Service Offering filter scoped to exactly one product tab, unlike
+  // FILTER_DIMS above (Company Size/Tenure/Industry/Country), which apply
+  // identically across all four products. Deliberately kept in a SEPARATE
+  // object, not merged into FILTER_DIMS -- several places generically do
+  // `Object.keys(FILTER_DIMS).forEach(...)` for the Executive Summary's
+  // segment-lens candidates (segmentDriverPortfolio/Product,
+  // aecSegmentDriverPortfolio); merging these in would make e.g. "QBO Plan"
+  // a pinnable candidate while computing Bill Pay's or Portfolio's segment
+  // lens, which is nonsensical -- a plan/service tier only exists for its
+  // own product. Keyed by tabId so `PRODUCT_FILTER_DIMS[tabId]` is the
+  // lookup used everywhere a product tab needs "does this tab have its own
+  // extra dimension, and what is it."
+  //
+  // Share/rateMult figures are illustrative modeling assumptions (no public
+  // Intuit disclosure breaks out engagement by plan/service tier), chosen
+  // to be directionally sensible -- higher/more full-service tiers skew
+  // toward smaller, more-invested customer bases with higher engagement --
+  // not calibrated against a real figure the way Company Size/Tenure were.
+  // Real-world plan names sourced from quickbooks.intuit.com (QBO tiers,
+  // Bill Pay Basic/Premium/Elite) and Intuit's QuickBooks Live Expert
+  // Assisted / Full-Service Bookkeeping service pages, per 2026-07 pricing.
+  const PRODUCT_FILTER_DIMS = {
+    accounting: {
+      key: "qboPlan",
+      label: "Plan",
+      options: [
+        { v: "Solopreneur", share: 0.22, rateMult: 0.85 },
+        { v: "Simple Start", share: 0.28, rateMult: 0.95 },
+        { v: "Essentials", share: 0.27, rateMult: 1.05 },
+        { v: "Plus", share: 0.18, rateMult: 1.15 },
+        { v: "Advanced", share: 0.05, rateMult: 1.3 },
+      ],
+    },
+    expert: {
+      key: "expertService",
+      label: "Service Offering",
+      options: [
+        { v: "Live Expert Assisted", share: 0.72, rateMult: 0.92 },
+        { v: "Live Expert Full-Service Bookkeeping", share: 0.28, rateMult: 1.2 },
+      ],
+    },
+    billpay: {
+      key: "billPayPlan",
+      label: "Plan",
+      options: [
+        { v: "Basic", share: 0.55, rateMult: 0.88 },
+        { v: "Premium", share: 0.32, rateMult: 1.05 },
+        { v: "Elite", share: 0.13, rateMult: 1.25 },
+      ],
+    },
+  };
+
+  // Shared "narrow to selected values, or use every value if unfiltered"
+  // combiner -- used both for FILTER_DIMS (via combineDim below) and for a
+  // product's own PRODUCT_FILTER_DIMS entry (via productSeriesForFilters).
+  function combineOptions(opts, selected) {
     const chosen = !selected || selected.length === 0 || selected.length === opts.length
       ? opts
       : opts.filter((o) => selected.includes(o.v));
     const totalShare = chosen.reduce((s, o) => s + o.share, 0) || 0.0001;
     const rateMult = chosen.reduce((s, o) => s + o.rateMult * o.share, 0) / totalShare;
     return { share: totalShare, rateMult, isAll: chosen.length === opts.length };
+  }
+
+  function combineDim(dimKey, selected) {
+    return combineOptions(FILTER_DIMS[dimKey].options, selected);
   }
 
   function combineAllDims(filters) {
@@ -975,6 +1034,16 @@
     });
     const rateMult = Math.pow(rateMults.reduce((a, b) => a * b, 1), 1 / rateMults.length);
     return { share: shareProduct, rateMult };
+  }
+
+  // Looks up a dimension's { label, options } definition regardless of
+  // whether it's a universal FILTER_DIMS key or one product tab's own
+  // PRODUCT_FILTER_DIMS entry -- lets every "Split by"-aware render/compute
+  // site resolve a dimKey without needing to know which bucket it lives in.
+  function dimDef(tabId, dimKey) {
+    if (FILTER_DIMS[dimKey]) return FILTER_DIMS[dimKey];
+    const productDim = PRODUCT_FILTER_DIMS[tabId];
+    return productDim && productDim.key === dimKey ? productDim : undefined;
   }
 
   const BUNDLE_DEPTH = {
@@ -1071,6 +1140,11 @@
       f.splitBy = "product";
     } else {
       f.bundleProducts = [];
+      // This tab's own Plan/Service Offering filter (2026-07-20), if it has
+      // one -- defaults to [] (empty selection means "all values"), same
+      // convention as Company Size/Tenure/Industry/Country.
+      const productDim = PRODUCT_FILTER_DIMS[tabId];
+      if (productDim) f[productDim.key] = [];
     }
     return f;
   }
@@ -1210,8 +1284,17 @@
     const dims = combineAllDims(filters);
     const bundleSel = filters.bundleProducts || [];
     const bundle = bundleProductsEffect(bundleSel.length);
-    const totalShare = dims.share * bundle.share;
-    const totalRateMult = dims.rateMult * bundle.rateMult;
+    // Product-only dimension (Plan/Service Offering, 2026-07-20): only ever
+    // has an effect when `productId` is the one tab that dimension belongs
+    // to AND that tab's own filters object actually carries a selection for
+    // it -- Portfolio's filters (and every other product's) never set this
+    // key, so `combineOptions` sees `undefined` and returns the neutral
+    // "every option" blend, exactly as if this dimension didn't exist for
+    // any other computation.
+    const productDim = PRODUCT_FILTER_DIMS[productId];
+    const productDimEff = productDim ? combineOptions(productDim.options, filters[productDim.key]) : { share: 1, rateMult: 1 };
+    const totalShare = dims.share * bundle.share * productDimEff.share;
+    const totalRateMult = dims.rateMult * bundle.rateMult * productDimEff.rateMult;
     const out = {};
     out.active_engaged = DATA.productData[productId].active_engaged.map((v) => v * totalShare);
     KPIS.forEach((k) => {
@@ -1309,7 +1392,7 @@
     // not all Tenure values selected" auto-detection this replaces.
     let lineSeriesList = null;
     if (filters.trendDisplay === "Separated" && filters.splitBy) {
-      const dim = FILTER_DIMS[filters.splitBy];
+      const dim = dimDef(productId, filters.splitBy);
       const allValues = dim.options.map((o) => o.v);
       const sel = filters[filters.splitBy] || [];
       const values = sel.length === 0 || sel.length === allValues.length ? allValues : sel;
@@ -2521,8 +2604,11 @@
       if (filters.bundleDepth && filters.bundleDepth !== "All") n++;
       if (filters.productView.length !== PRODUCTS.length) n++;
       if (filters.splitBy && filters.splitBy !== "product") n++;
-    } else if (filters.bundleProducts && filters.bundleProducts.length) {
-      n++;
+    } else {
+      if (filters.bundleProducts && filters.bundleProducts.length) n++;
+      // This tab's own Plan/Service Offering filter (2026-07-20), if it has one.
+      const productDim = PRODUCT_FILTER_DIMS[tabId];
+      if (productDim && filters[productDim.key] && filters[productDim.key].length) n++;
     }
     return n;
   }
@@ -2530,11 +2616,17 @@
   function renderFilterBand(tabId, filters) {
     const isPortfolio = tabId === "portfolio";
     // Split by is fully generalized in the computation/rendering layer (any
-    // product tab could enable it), but per explicit direction it's only
-    // turned on for Portfolio and QBO Accounting for now, so the other
-    // three product tabs can be reviewed and enabled the same way later
-    // without further plumbing.
-    const enableSplitBy = isPortfolio || tabId === "accounting";
+    // product tab could enable it). Originally only turned on for Portfolio
+    // and QBO Accounting; extended 2026-07-20 to Intuit Expert and Bill Pay
+    // too, since each of those tabs now has its own Plan/Service Offering
+    // filter that should be split-able -- as a consequence, those two tabs'
+    // existing Company Size/Tenure/Industry/Country filters also gain the
+    // "Split by" checkbox they were always capable of showing (same
+    // plumbing Accounting already exercises), so all four product tabs
+    // eligible for their own dimension are now consistent. Payments has no
+    // product-specific dimension (it's usage-based, not plan-tiered -- see
+    // deck-plan notes) and stays as before.
+    const enableSplitBy = isPortfolio || tabId === "accounting" || tabId === "expert" || tabId === "billpay";
     let extra = "";
     if (isPortfolio) {
       extra += `
@@ -2563,13 +2655,32 @@
         filters.splitBy
       );
     } else {
+      // This tab's own Plan/Service Offering filter (2026-07-20), if it has
+      // one -- rendered first, ahead of Bundle Products, since it's the
+      // tab's own primary segmentation choice. Same multiSelectHtml call
+      // shape as Company Size/Tenure/etc. below, so format/layout/alignment
+      // (box width, "Split by" checkbox row, panel behavior) all match
+      // exactly with no separate styling.
+      const productDim = PRODUCT_FILTER_DIMS[tabId];
+      if (productDim) {
+        extra += multiSelectHtml(
+          productDim.key,
+          productDim.label,
+          productDim.options.map((o) => o.v),
+          filters[productDim.key],
+          undefined,
+          undefined,
+          enableSplitBy ? productDim.key : null,
+          filters.splitBy
+        );
+      }
       const others = PRODUCTS.filter((p) => p.id !== tabId).map((p) => p.short);
       // Bundle Products isn't one of the split-able FILTER_DIMS, but on a
-      // tab where Split by is enabled (Accounting) its sibling filters
-      // (Company Size, Tenure, etc.) do grow a real Split by row above
-      // their box -- pass alignSpacer so this box gets the same invisible
-      // spacer Bundle Depth uses on Portfolio, instead of sitting higher
-      // than the rest of the row.
+      // tab where Split by is enabled its sibling filters (Plan/Service
+      // Offering, Company Size, Tenure, etc.) do grow a real Split by row
+      // above their box -- pass alignSpacer so this box gets the same
+      // invisible spacer Bundle Depth uses on Portfolio, instead of sitting
+      // higher than the rest of the row.
       extra += multiSelectHtml("bundleProducts", "Bundle Products", others, filters.bundleProducts, "None", false, null, null, enableSplitBy);
     }
 
@@ -2902,7 +3013,7 @@
     } else {
       seriesByMetric = volumeSeriesForFilters(tabId, filters);
       if (separated) {
-        const dim = FILTER_DIMS[splitBy];
+        const dim = dimDef(tabId, splitBy);
         const allValues = dim.options.map((o) => o.v);
         const sel = filters[splitBy] || [];
         segmentValues = sel.length === 0 || sel.length === allValues.length ? allValues : sel;
@@ -3139,7 +3250,7 @@
     const splitBy = filters && filters.trendDisplay === "Separated" ? filters.splitBy : null;
     let segmentValues = null;
     if (splitBy) {
-      const dim = FILTER_DIMS[splitBy];
+      const dim = dimDef(tabId, splitBy);
       const allValues = dim.options.map((o) => o.v);
       const sel = filters[splitBy] || [];
       segmentValues = sel.length === 0 || sel.length === allValues.length ? allValues : sel;
@@ -3187,7 +3298,7 @@
           ${steps.map((s, i) => stepCardHtml(s, i, false, tabId, FRICTION_LABEL[tabId])).join("")}
         </div>`;
     } else {
-      const dimLabel = FILTER_DIMS[splitBy].label;
+      const dimLabel = dimDef(tabId, splitBy).label;
       const trendLabels = toGrain(view.weeks, steps[0].trend, grain).labels;
       const trendSeries = segmentValues.map((v, i) => ({
         label: v,
@@ -3384,8 +3495,8 @@
     root.innerHTML = `
       <header class="app-header">
         <div class="header-left">
+          <img class="header-logo" src="intuit-logo.svg" alt="Intuit" />
           <h1 class="app-title">Product Engagement Dashboard</h1>
-          <div class="app-subtitle">Small business products &amp; services · Global Business Solutions Group</div>
         </div>
         <div class="header-right">
           <div class="refresh-ts">Data refreshed ${REFRESH_TS}</div>
