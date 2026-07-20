@@ -561,16 +561,6 @@ html, body {
   font-size: var(--text-body-size);
 }
 
-.status-chip {
-  font-size: var(--text-micro-size);
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 2px 10px;
-}
-.status-chip-good { color: var(--color-green); background: var(--color-green-tint); }
-.status-chip-watch { color: #8a5a12; background: #fbf1de; }
-.status-chip-risk { color: var(--color-risk); background: var(--color-risk-tint); }
-
 .ai-summary-fields {
   display: flex;
   flex-direction: column;
@@ -611,6 +601,17 @@ html, body {
 }
 .ai-summary-list li { margin-bottom: 2px; }
 .ai-summary-list li:last-child { margin-bottom: 0; }
+
+/* 2026-07-20: numeric highlighting inside the Executive Summary bullets --
+   movement/gap deltas and called-out weak-point rates (abandonment, "lowest
+   modeled rate" segments) are colored green (favorable) or red
+   (unfavorable) so the reader doesn't have to parse sign/direction out of
+   plain text. Scoped to .ai-summary-list specifically (rather than a bare
+   .num-good/.num-bad rule) so this doesn't collide with the differently-
+   scoped .good/.risk color conventions already used elsewhere (KPI cards,
+   falloff ranking) that carry their own thresholds. */
+.ai-summary-list .num-good { color: var(--color-green); font-weight: 700; }
+.ai-summary-list .num-bad { color: var(--color-risk); font-weight: 700; }
 
 .ai-summary-foot {
   display: flex;

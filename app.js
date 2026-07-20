@@ -818,6 +818,32 @@
     });
   }
 
+  // One product's own overall/blended falloff rate (2026-07-20 fix): the
+  // Separated + Split by Product view of the Workflow Falloff Trend chart
+  // was plotting each product's SINGLE worst-friction step (label "Product
+  // -- Step"), not a product-level rate -- inconsistent with every other
+  // Split by option, which blends into one overall number per line (Combined
+  // blends each product's worst step across products; a segment-dimension
+  // split blends across products with that segment pinned). Product split
+  // should blend the other way: across that ONE product's own funnel steps,
+  // weighted by each step's own entered volume -- same "weighted average of
+  // abandon rates" convention as combinedTrend/combinedFalloffTrendFor
+  // above, just changing which axis is being blended.
+  function productFalloffTrendFor(pid, filters, bd) {
+    const dims2 = combineAllDims(filters);
+    const steps = computeFalloff(pid, dims2.share * bd.share, dims2.rateMult * bd.rateMult);
+    const weeklyAll = computeFalloffWeekly(pid, dims2.rateMult * bd.rateMult);
+    return WEEKS.map((w, i) => {
+      let num = 0,
+        den = 0;
+      steps.forEach((s, si) => {
+        num += weeklyAll[si].series[i] * s.entered;
+        den += s.entered;
+      });
+      return den ? num / den : 0;
+    });
+  }
+
   // Summed absolute falloff-count series across a set of products under a
   // given filters override -- same "sum raw counts, don't blend" convention
   // the other absolute-count charts use, generalized the same way as the
@@ -978,6 +1004,22 @@
   }
   function pts(v) {
     return (v >= 0 ? "+" : "") + v.toFixed(1) + " pts";
+  }
+  // Executive Summary numeric highlighting (2026-07-20, per direct
+  // feedback): wraps an already-formatted number/delta string (from pts,
+  // pct, or signedPct above) in a color span -- green for favorable, red
+  // for unfavorable. Every KPI this dashboard tracks (Activation Rate, Core
+  // Job Completion, Habit Formation, Deepening Rate) is a "higher is
+  // better" rate, so callers pass `favorable = value >= 0` for movement/gap
+  // deltas; a few call sites (e.g. an abandonment rate or "the lowest
+  // modeled rate in this segment") are always naming the weak point being
+  // called out as a problem, so those pass `favorable = false` outright
+  // rather than testing a sign. Deliberately a flat two-color scheme (no
+  // amber/"watch" tier) -- narrower than kpiStatus's three-tier gap
+  // coloring used on the KPI cards themselves, matching what was actually
+  // asked for here.
+  function numSpan(text, favorable) {
+    return `<span class="${favorable ? "num-good" : "num-bad"}">${text}</span>`;
   }
   // ITPM/ITPY index: current as a percentage of the prior period's value
   // (100 = flat, >100 = improved, <100 = declined) -- replaces the earlier
@@ -1748,7 +1790,62 @@
   function ordinalDriver(view) {
     if (view.drivers) return view.drivers[0];
     const worst = view.falloff.reduce((a, b) => (b.abandonRate > a.abandonRate ? b : a));
-    return { product: PRODUCT_BY_ID[view.productId || ""] ? PRODUCT_BY_ID[view.productId].short : "", step: worst.step, abandonRate: worst.abandonRate, abandoned: worst.abandoned };
+    // 2026-07-20: carry vsWeek/vsMonth through too (view.falloff's rows
+    // already compute them, same as Portfolio's own view.drivers) -- without
+    // this, a product tab's funnel driver line had no trend movement to
+    // report, unlike Portfolio's.
+    return {
+      product: PRODUCT_BY_ID[view.productId || ""] ? PRODUCT_BY_ID[view.productId].short : "",
+      step: worst.step,
+      abandonRate: worst.abandonRate,
+      abandoned: worst.abandoned,
+      vsWeek: worst.vsWeek,
+      vsMonth: worst.vsMonth,
+    };
+  }
+
+  // Active Engaged Customers driver, Portfolio only (2026-07-20, per direct
+  // feedback): "What moved" has always named AEC's blended MoM trend for
+  // scale/context, but "Likely reason"/"Suggestion" never covered it -- the
+  // two fields' scope silently stopped short of what "What moved" actually
+  // discusses. AEC is a raw count with no target, so there's no gap to
+  // decompose the way the four targeted KPIs are; the natural driver
+  // instead is which included product contributed the largest share of the
+  // net MoM change (by absolute customers, not percent -- a small product
+  // swinging 20% moves the portfolio far less than a large one swinging
+  // 2%).
+  function aecDriverPortfolio(view) {
+    const lfm = lastFullMonthIndices();
+    const perProduct = view.included.map((pid) => {
+      const series = view.perProduct[pid].series.active_engaged;
+      const cur = series[lfm.curIdx];
+      const prior = lfm.priorIdx != null ? series[lfm.priorIdx] : cur;
+      const deltaPct = prior ? ((cur - prior) / prior) * 100 : 0;
+      const deltaAbs = cur - prior;
+      return { productId: pid, product: PRODUCT_BY_ID[pid].short, cur, prior, deltaPct, deltaAbs };
+    });
+    return perProduct.reduce((a, b) => (Math.abs(b.deltaAbs) > Math.abs(a.deltaAbs) ? b : a));
+  }
+
+  // Segment lens for the same AEC trend: which FILTER_DIMS segment shows
+  // the largest MoM movement in active-engaged customers (by percent, since
+  // segments don't have a comparable absolute scale to each other the way
+  // products do). Same "pin one segment value, recompute with the existing
+  // governed share adjustment" pattern used everywhere else.
+  function aecSegmentDriverPortfolio(view) {
+    const lfm = lastFullMonthIndices();
+    let mostMoved = null;
+    Object.keys(FILTER_DIMS).forEach((dimKey) => {
+      FILTER_DIMS[dimKey].options.forEach((opt) => {
+        const pinned = filtersPinned(view.filters, dimKey, opt.v);
+        const cur = view.included.reduce((s, pid) => s + productSeriesForFilters(pid, pinned).series.active_engaged[lfm.curIdx], 0);
+        const prior =
+          lfm.priorIdx != null ? view.included.reduce((s, pid) => s + productSeriesForFilters(pid, pinned).series.active_engaged[lfm.priorIdx], 0) : cur;
+        const deltaPct = prior ? ((cur - prior) / prior) * 100 : 0;
+        if (!mostMoved || Math.abs(deltaPct) > Math.abs(mostMoved.deltaPct)) mostMoved = { dimKey, dimLabel: FILTER_DIMS[dimKey].label, value: opt.v, deltaPct };
+      });
+    });
+    return mostMoved;
   }
 
   // Deepening Rate driver, Portfolio (2026-07-19): unlike the falloff funnel
@@ -1763,11 +1860,17 @@
     const lfm = lastFullMonthIndices();
     const bd = view.bd;
     const candidates = view.included.map((pid) => {
-      const raw = view.perProduct[pid].series.deepening_rate[lfm.curIdx];
+      const series = view.perProduct[pid].series.deepening_rate;
+      const raw = series[lfm.curIdx];
       const current = clamp(raw * bd.rateMult, 1, 99);
       const target = DATA.targets[pid].deepening_rate;
       const gap = target != null ? current - target : null;
-      return { productId: pid, product: PRODUCT_BY_ID[pid].short, current, target, gap };
+      // 2026-07-20 (trend analysis, per direct feedback): wk-over-wk
+      // movement of this product's own Deepening Rate, same anchor/scaling
+      // as `current` -- gives the driver line a trend fact, not just a
+      // snapshot comparison.
+      const vsWeek = lfm.curIdx > 0 ? current - clamp(series[lfm.curIdx - 1] * bd.rateMult, 1, 99) : null;
+      return { productId: pid, product: PRODUCT_BY_ID[pid].short, current, target, gap, vsWeek };
     });
     const withTarget = candidates.filter((c) => c.gap != null);
     return withTarget.length ? withTarget.reduce((a, b) => (b.gap < a.gap ? b : a)) : candidates.reduce((a, b) => (b.current < a.current ? b : a));
@@ -1793,8 +1896,15 @@
     const candidates = [];
     Object.keys(FILTER_DIMS).forEach((dimKey) => {
       FILTER_DIMS[dimKey].options.forEach((opt) => {
-        const rate = productSeriesForFilters(tabId, filtersPinned(filters, dimKey, opt.v)).series[kpiId][lfm.curIdx];
-        candidates.push({ dimKey, dimLabel: FILTER_DIMS[dimKey].label, value: opt.v, rate });
+        const series = productSeriesForFilters(tabId, filtersPinned(filters, dimKey, opt.v)).series[kpiId];
+        const rate = series[lfm.curIdx];
+        // 2026-07-20 (trend analysis, per direct feedback): this segment's
+        // own wk-over-wk movement, under the same pinned filter -- shared by
+        // every caller of this helper (Deepening Rate and the funnel KPIs'
+        // segment lens alike), so trend context reaches every segment-lens
+        // bullet in the Executive Summary, not just the top-level driver.
+        const vsWeek = lfm.curIdx > 0 ? rate - series[lfm.curIdx - 1] : null;
+        candidates.push({ dimKey, dimLabel: FILTER_DIMS[dimKey].label, value: opt.v, rate, vsWeek });
       });
     });
     candidates.sort((a, b) => a.rate - b.rate);
@@ -1837,8 +1947,12 @@
     Object.keys(FILTER_DIMS).forEach((dimKey) => {
       FILTER_DIMS[dimKey].options.forEach((opt) => {
         const pinned = filtersPinned(view.filters, dimKey, opt.v);
-        const rate = portfolioBlendedSeriesForFilters(view.included, pinned, view.bd, kpiId)[lfm.curIdx];
-        if (!worst || rate < worst.rate) worst = { dimKey, dimLabel: FILTER_DIMS[dimKey].label, value: opt.v, rate };
+        const series = portfolioBlendedSeriesForFilters(view.included, pinned, view.bd, kpiId);
+        const rate = series[lfm.curIdx];
+        // 2026-07-20 (trend analysis): same wk-over-wk addition as the
+        // product-tab segment helper above, kept consistent across scopes.
+        const vsWeek = lfm.curIdx > 0 ? rate - series[lfm.curIdx - 1] : null;
+        if (!worst || rate < worst.rate) worst = { dimKey, dimLabel: FILTER_DIMS[dimKey].label, value: opt.v, rate, vsWeek };
       });
     });
     return worst;
@@ -1856,11 +1970,27 @@
     if (kpiId === "habit_formation" || kpiId === "core_job_completion") {
       const d = isPortfolio ? view.drivers[0] : ordinalDriver(Object.assign({ productId: tabId }, view));
       const seg = isPortfolio ? segmentDriverPortfolio(view, kpiId) : segmentDriverProduct(tabId, view, kpiId);
+      // Abandonment rates and "lowest modeled rate" segment call-outs are
+      // always naming the weak point behind the gap, not a number whose
+      // sign could go either way -- colored red outright rather than by
+      // testing >= 0.
+      // 2026-07-20 (trend analysis, per direct feedback): the step's own
+      // wk-over-wk movement (d.vsWeek, already computed the same way the
+      // falloff ranking rows/trend chart show it) is now stated alongside
+      // the snapshot rate -- an abandonment rate that's climbing is a
+      // different story from one that's already improving, and "Likely
+      // reason" previously only ever showed the single-period number. Lower
+      // abandonment is favorable, so the trend color is the opposite test
+      // from a KPI movement/gap (<=0 is green here, not >=0).
+      const trendClause = d.vsWeek != null ? `, trending ${numSpan(fmtDeltaPts(d.vsWeek), d.vsWeek <= 0)} vs. last week` : "";
       const stepLine = isPortfolio
-        ? `Largest single driver behind ${card.kpi.name}: ${d.product} — ${d.step} (${pct(d.abandonRate * 100)} abandonment, ${compactNum(d.abandoned)} customers).`
-        : `Largest contributing driver: ${FRICTION_LABEL[tabId]} falloff, ${pct(d.abandonRate * 100)} abandonment (${compactNum(d.abandoned)} customers), concentrated in the ${d.step} step.`;
+        ? `Largest single driver behind ${card.kpi.name}: ${d.product} — ${d.step} (${numSpan(pct(d.abandonRate * 100), false)} abandonment${trendClause}, ${compactNum(d.abandoned)} customers).`
+        : `Largest contributing driver: ${FRICTION_LABEL[tabId]} falloff, ${numSpan(pct(d.abandonRate * 100), false)} abandonment${trendClause} (${compactNum(d.abandoned)} customers), concentrated in the ${d.step} step.`;
+      // Segment rates are the KPI's own "higher is better" scale (unlike the
+      // abandonment rate above), so trend favorability flips: >= 0 is green.
+      const segTrendClause = seg && seg.vsWeek != null ? `, trending ${numSpan(pts(seg.vsWeek), seg.vsWeek >= 0)} vs. last week` : "";
       const segLine = seg
-        ? `Segment lens: the ${seg.value} segment (by ${seg.dimLabel}) shows the lowest modeled ${card.kpi.name} at ${pct(seg.rate)} -- a second lever alongside the journey-step driver above.`
+        ? `Segment lens: the ${seg.value} segment (by ${seg.dimLabel}) shows the lowest modeled ${card.kpi.name} at ${numSpan(pct(seg.rate), false)}${segTrendClause} -- a second lever alongside the journey-step driver above.`
         : null;
       return {
         kind: "funnel",
@@ -1885,14 +2015,16 @@
       if (isPortfolio) {
         const dd = deepeningDriverPortfolio(view);
         const seg = segmentDriverPortfolio(view, "deepening_rate");
+        const ddTrendClause = dd.vsWeek != null ? `, trending ${numSpan(pts(dd.vsWeek), dd.vsWeek >= 0)} vs. last week` : "";
         const lines = [
-          `${dd.product} has the lowest Deepening Rate among included products, at ${pct(dd.current)}${
-            dd.target != null ? ` vs. ${pct(dd.target)} target (${pts(dd.gap)})` : ""
-          } — the main drag on the blended figure.`,
+          `${dd.product} has the lowest Deepening Rate among included products, at ${numSpan(pct(dd.current), false)}${
+            dd.target != null ? ` vs. ${pct(dd.target)} target (${numSpan(pts(dd.gap), dd.gap >= 0)})` : ""
+          }${ddTrendClause} — the main drag on the blended figure.`,
         ];
         if (seg) {
+          const segTrendClause = seg.vsWeek != null ? `, trending ${numSpan(pts(seg.vsWeek), seg.vsWeek >= 0)} vs. last week` : "";
           lines.push(
-            `Segment lens: the ${seg.value} segment (by ${seg.dimLabel}) shows the lowest modeled Deepening Rate at ${pct(seg.rate)} across included products -- a second cut alongside the product-level view above.`
+            `Segment lens: the ${seg.value} segment (by ${seg.dimLabel}) shows the lowest modeled Deepening Rate at ${numSpan(pct(seg.rate), false)}${segTrendClause} across included products -- a second cut alongside the product-level view above.`
           );
         }
         return {
@@ -1904,9 +2036,11 @@
         };
       }
       const dd = deepeningDriverProduct(tabId, view);
-      const ddLines = [`The ${dd.value} segment (by ${dd.dimLabel}) has the lowest modeled Deepening Rate at ${pct(dd.rate)}, the main driver of the product-level gap.`];
+      const ddTrendClause = dd.vsWeek != null ? `, trending ${numSpan(pts(dd.vsWeek), dd.vsWeek >= 0)} vs. last week` : "";
+      const ddLines = [`The ${dd.value} segment (by ${dd.dimLabel}) has the lowest modeled Deepening Rate at ${numSpan(pct(dd.rate), false)}${ddTrendClause}, the main driver of the product-level gap.`];
       if (dd.second) {
-        ddLines.push(`Second-largest segment factor: the ${dd.second.value} segment (by ${dd.second.dimLabel}) at ${pct(dd.second.rate)}.`);
+        const secondTrendClause = dd.second.vsWeek != null ? `, trending ${numSpan(pts(dd.second.vsWeek), dd.second.vsWeek >= 0)} vs. last week` : "";
+        ddLines.push(`Second-largest segment factor: the ${dd.second.value} segment (by ${dd.second.dimLabel}) at ${numSpan(pct(dd.second.rate), false)}${secondTrendClause}.`);
       }
       return {
         kind: "deepening",
@@ -1916,13 +2050,31 @@
         citesFalloff: false,
       };
     }
+    // Activation Rate (and anything else that reaches this fallback): no
+    // step-level funnel decomposition exists for it in this data model, but
+    // 2026-07-20 (per direct feedback -- segment analysis should reach
+    // every topic in the Executive Summary, not just the funnel/deepening
+    // KPIs) a segment lens is still computable via the same generalized
+    // segmentDriverProduct/Portfolio helpers used everywhere else, since
+    // those work for any rate KPI. Gives this KPI at least one real,
+    // governed comparison instead of only a flagged-gap message.
+    const seg = isPortfolio ? segmentDriverPortfolio(view, kpiId) : segmentDriverProduct(tabId, view, kpiId);
+    const segTrendClause = seg && seg.vsWeek != null ? `, trending ${numSpan(pts(seg.vsWeek), seg.vsWeek >= 0)} vs. last week` : "";
+    const lines = [
+      `A step-level funnel decomposition isn't available for ${card.kpi.name} yet — driver analysis here covers the Habit Formation/Core Job Completion funnel and Deepening Rate's segment mix natively; treat the segment comparison below as a starting point, not an attributed cause.`,
+    ];
+    if (seg) {
+      lines.push(
+        `Segment lens: the ${seg.value} segment (by ${seg.dimLabel}) shows the lowest modeled ${card.kpi.name} at ${numSpan(pct(seg.rate), false)}${segTrendClause}${isPortfolio ? " across included products" : ""}.`
+      );
+    }
     return {
       kind: "none",
       dedupeKey: "none",
-      lines: [
-        `A computed driver decomposition isn't available for ${card.kpi.name} yet — driver analysis here covers the Habit Formation/Core Job Completion funnel and Deepening Rate's segment mix, but not Activation Rate. Treat this as a flagged gap, not an attributed cause.`,
-      ],
-      decision: `Recommend an activation-funnel owner review before assuming it shares a root cause with the funnel/segment drivers above.`,
+      lines,
+      decision: seg
+        ? `Recommend an activation-funnel owner review, starting with the ${seg.value} segment, before assuming it shares a root cause with the funnel/segment drivers above.`
+        : `Recommend an activation-funnel owner review before assuming it shares a root cause with the funnel/segment drivers above.`,
       citesFalloff: false,
     };
   }
@@ -1930,6 +2082,7 @@
   function buildAiSummary(tabId, view) {
     const habitCard = view.kpiCards.find((c) => c.kpi.id === "habit_formation");
     const gapTxt = habitCard.gap != null ? pts(habitCard.gap) : "n/a";
+    const gapTxtColored = habitCard.gap != null ? numSpan(gapTxt, habitCard.gap >= 0) : gapTxt;
 
     // The status chip is driven by whichever targeted KPI has the worst
     // gap-vs-target (see tabOverallStatus) -- not always Habit Formation.
@@ -2004,32 +2157,61 @@
       const priorAec =
         lfmAec.priorIdx != null ? view.included.reduce((s, pid) => s + view.perProduct[pid].series.active_engaged[lfmAec.priorIdx], 0) : curAec;
       const aecMovementPct = priorAec ? ((curAec - priorAec) / priorAec) * 100 : 0;
-      const aecBullet = `Portfolio Active Engaged Customers ${signedPct(aecMovementPct)} vs. prior month.`;
+      const aecBullet = `Portfolio Active Engaged Customers ${numSpan(signedPct(aecMovementPct), aecMovementPct >= 0)} vs. prior month.`;
       const primaryName = primaryCard ? primaryCard.kpi.name : "Habit Formation";
 
       whatMoved = [
         aecBullet,
         primaryCard
-          ? `${primaryName} moved ${pts(primaryCard.movement)} this period and now sits ${pts(primaryCard.gap)} vs. target (${STATUS_LABEL[status]}).`
-          : `${primaryName} gap vs. target is ${gapTxt} (${STATUS_LABEL[status]}).`,
+          ? `${primaryName} moved ${numSpan(pts(primaryCard.movement), primaryCard.movement >= 0)} this period and now sits ${numSpan(pts(primaryCard.gap), primaryCard.gap >= 0)} vs. target (${STATUS_LABEL[status]}).`
+          : `${primaryName} gap vs. target is ${gapTxtColored} (${STATUS_LABEL[status]}).`,
       ];
-      if (primaryBundle.kind === "none" && worstKpiId !== "habit_formation") whatMoved.push(`Habit Formation gap is a smaller ${gapTxt} for comparison.`);
-      if (secondaryCard) whatMoved.push(`${secondaryCard.kpi.name} moved ${pts(secondaryCard.movement)} this period (now ${pts(secondaryCard.gap)} vs. target) -- the next-largest mover.`);
+      if (primaryBundle.kind === "none" && worstKpiId !== "habit_formation") whatMoved.push(`Habit Formation gap is a smaller ${gapTxtColored} for comparison.`);
+      if (secondaryCard) whatMoved.push(`${secondaryCard.kpi.name} moved ${numSpan(pts(secondaryCard.movement), secondaryCard.movement >= 0)} this period (now ${numSpan(pts(secondaryCard.gap), secondaryCard.gap >= 0)} vs. target) -- the next-largest mover.`);
     } else {
       const productShort = PRODUCT_BY_ID[tabId].short;
       const primaryName = primaryCard ? primaryCard.kpi.name : "Habit Formation";
 
       whatMoved = [
         primaryCard
-          ? `${productShort} ${primaryName} moved ${pts(primaryCard.movement)} this period and now sits at ${pct(primaryCard.current)}${
+          ? `${productShort} ${primaryName} moved ${numSpan(pts(primaryCard.movement), primaryCard.movement >= 0)} this period and now sits at ${pct(primaryCard.current)}${
               primaryCard.target != null ? ` vs. ${pct(primaryCard.target)} target` : ""
-            } (${pts(primaryCard.gap)}).`
+            } (${numSpan(pts(primaryCard.gap), primaryCard.gap >= 0)}).`
           : `${productShort} ${primaryName} is ${pct(primaryCardEff.current)}${primaryCardEff.target != null ? ` vs. ${pct(primaryCardEff.target)} target` : " (no target)"} (${
-              primaryCardEff.gap != null ? pts(primaryCardEff.gap) : "n/a"
+              primaryCardEff.gap != null ? numSpan(pts(primaryCardEff.gap), primaryCardEff.gap >= 0) : "n/a"
             }).`,
       ];
-      if (primaryBundle.kind === "none" && worstKpiId !== "habit_formation") whatMoved.push(`Habit Formation gap is a smaller ${gapTxt} for comparison.`);
-      if (secondaryCard) whatMoved.push(`${secondaryCard.kpi.name} moved ${pts(secondaryCard.movement)} this period (now ${pts(secondaryCard.gap)} vs. target) -- the next-largest mover.`);
+      if (primaryBundle.kind === "none" && worstKpiId !== "habit_formation") whatMoved.push(`Habit Formation gap is a smaller ${gapTxtColored} for comparison.`);
+      if (secondaryCard) whatMoved.push(`${secondaryCard.kpi.name} moved ${numSpan(pts(secondaryCard.movement), secondaryCard.movement >= 0)} this period (now ${numSpan(pts(secondaryCard.gap), secondaryCard.gap >= 0)} vs. target) -- the next-largest mover.`);
+    }
+
+    // 2026-07-20 (per direct feedback): "Likely reason"/"Suggestion" bullets
+    // must be ordered to match "What moved"'s own bullet order -- AEC first
+    // (portfolio only, since it's always "What moved"'s first bullet there),
+    // then the primary mover, then the secondary mover -- with each mover's
+    // own reasons internally ordered by significance (its single biggest
+    // driver fact first, a supplementary segment-lens cut second). Built as
+    // separate ordered blocks below and concatenated in that exact sequence,
+    // rather than appending AEC at the end as an afterthought.
+    let aecLines = [],
+      aecDecision = [];
+    if (tabId === "portfolio") {
+      const aecDriver = aecDriverPortfolio(view);
+      const aecSeg = aecSegmentDriverPortfolio(view);
+      const aecFavorable = aecDriver.deltaPct >= 0;
+      aecLines.push(
+        `Active Engaged Customers: ${aecDriver.product} is the largest contributor to this period's net change (${numSpan(signedPct(aecDriver.deltaPct), aecFavorable)} MoM).`
+      );
+      if (aecSeg) {
+        aecLines.push(
+          `Segment lens: the ${aecSeg.value} segment (by ${aecSeg.dimLabel}) shows the largest MoM movement in active-engaged customers, at ${numSpan(signedPct(aecSeg.deltaPct), aecSeg.deltaPct >= 0)}.`
+        );
+      }
+      aecDecision.push(
+        aecFavorable
+          ? `Continue current acquisition/retention motions for ${aecDriver.product} -- it's the primary driver of this period's active-customer growth.`
+          : `Recommend a customer-health review for ${aecDriver.product} -- it's the primary driver of this period's active-customer decline.`
+      );
     }
 
     // Primary mover gets its full driver bundle (2 reasons, where a second,
@@ -2037,24 +2219,29 @@
     // Secondary mover is deliberately kept to exactly ONE reason and ONE
     // suggestion -- it's a real second concern worth naming, not a second
     // full writeup competing with the primary for attention.
-    driverLine = [...primaryBundle.lines];
-    decision = [primaryBundle.decision];
+    const primaryLines = [...primaryBundle.lines];
+    const primaryDecision = [primaryBundle.decision];
+    const secondaryLines = [];
+    const secondaryDecision = [];
     if (secondaryBundle) {
       if (sharesDriver) {
         // Habit Formation and Core Job Completion are both fed by the
         // identical workflow-falloff funnel -- the secondary's "one reason"
         // is that shared fact, not a repeat of the primary's step detail,
         // and its "one suggestion" is that no separate fix is needed.
-        driverLine.push(`${secondaryCard.kpi.name} shares this same driver -- it and ${primaryCardEff.kpi.name} are both fed by the identical workflow-falloff funnel.`);
-        decision.push(`No separate action needed for ${secondaryCard.kpi.name} -- the ${primaryCardEff.kpi.name} review above should move both metrics together.`);
+        secondaryLines.push(`${secondaryCard.kpi.name} shares this same driver -- it and ${primaryCardEff.kpi.name} are both fed by the identical workflow-falloff funnel.`);
+        secondaryDecision.push(`No separate action needed for ${secondaryCard.kpi.name} -- the ${primaryCardEff.kpi.name} review above should move both metrics together.`);
       } else {
         // Only the secondary bundle's own headline reason, not its segment
         // lens too -- that second cut is reserved for the primary mover so
         // the summary doesn't read as two full driver writeups back to back.
-        driverLine.push(secondaryBundle.lines[0]);
-        decision.push(secondaryBundle.decision);
+        secondaryLines.push(secondaryBundle.lines[0]);
+        secondaryDecision.push(secondaryBundle.decision);
       }
     }
+
+    driverLine = [...aecLines, ...primaryLines, ...secondaryLines];
+    decision = [...aecDecision, ...primaryDecision, ...secondaryDecision];
 
     const citeTokens = [citeToken(tabId, worstKpiId)];
     if (primaryBundle.citesFalloff) citeTokens.push("workflow_falloff");
@@ -2471,7 +2658,6 @@
       <div class="ai-summary">
         <div class="ai-summary-head">
           <span class="ai-summary-title"><span class="ai-summary-icon" aria-hidden="true" title="AI-generated">✨</span>Executive Summary</span>
-          <span class="status-chip status-chip-${summary.status}">${STATUS_LABEL[summary.status]}</span>
         </div>
         <div class="ai-summary-fields">
           ${fields
@@ -2749,6 +2935,27 @@
 
   function renderFalloffSection(tabId, view) {
     const grain = view.filters ? view.filters.viewGrain : "Weekly";
+    // Shared horizontal step-card box, used for every falloff ranking on
+    // both Portfolio and the four product tabs (2026-07-20: hoisted out of
+    // the Portfolio-only branch below so product tabs can reuse the exact
+    // same card instead of the older full-width .falloff-row list format).
+    // frictionLabel is optional -- Portfolio's pooled/segment views span
+    // multiple products (a single "friction point" pill wouldn't apply
+    // across all of them the same way), so only the product-tab call site
+    // passes it.
+    const stepCardHtml = (r, i, showProduct, productId, frictionLabel) => `
+      <div class="driver-col-step">
+        <div class="driver-col-step-head">
+          <span class="driver-col-step-rank">#${i + 1}</span>
+          <span class="driver-col-step-name">${showProduct ? `${r.product} — ` : ""}${r.step}${falloffReasonNote(productId, r.step) ? chartInfoIcon(falloffReasonNote(productId, r.step)) : ""}${frictionLabel && r.step === frictionLabel ? ' <span class="friction-tag">friction point</span>' : ""}</span>
+        </div>
+        <div class="driver-col-step-rate ${SIG_CLASS[r.significance]}">${pct(r.abandonRate * 100)}</div>
+        <div class="driver-col-step-stats">
+          <span class="${r.vsWeek <= 0 ? "good" : "risk"}">wk ${fmtDeltaPts(r.vsWeek)}</span>
+          <span class="${r.vsMonth != null && r.vsMonth <= 0 ? "good" : r.vsMonth != null ? "risk" : ""}">mo ${fmtDeltaPts(r.vsMonth)}</span>
+          <span>${compactNum(r.abandoned)} lost</span>
+        </div>
+      </div>`;
     if (tabId === "portfolio") {
       const filters = view.filters;
       const bd = view.bd;
@@ -2784,10 +2991,15 @@
         const volSvg = buildBarSVG({ labels: gVol.labels, bars: gVol.values, axisLabel: "Customers", deltaUnit: deltaUnitFor(grain) });
         volCard = `<div class="chart-card"><div class="chart-card-title">Customers Lost to Workflow Falloff${chartInfoIcon(FALLOFF_VOL_DEF)}</div>${volSvg}</div>`;
       } else if (splitBy === "product") {
-        const trendSeries = view.drivers.map((d) => ({
-          label: `${d.product} — ${d.step}`,
-          color: COLORS[d.productId],
-          data: toGrain(view.weeks, d.trend, grain).values,
+        // 2026-07-20 fix: each line is now that product's own overall
+        // blended falloff rate (productFalloffTrendFor -- weighted across
+        // its own funnel steps), not just its single worst step's trend.
+        // Matches every other Split by option's "one blended number per
+        // line" convention instead of narrating one specific step.
+        const trendSeries = view.included.map((pid) => ({
+          label: PRODUCT_BY_ID[pid].short,
+          color: COLORS[pid],
+          data: toGrain(view.weeks, productFalloffTrendFor(pid, filters, bd), grain).values,
         }));
         const trendSvg = buildRateTargetSVG({ labels, lineSeriesList: trendSeries, target: null, axisLabel: "Abandon Rate (%)", deltaUnit: deltaUnitFor(grain) });
         rateCard = `
@@ -2853,20 +3065,6 @@
             </div>
           </div>`;
       }
-
-      const stepCardHtml = (r, i, showProduct, productId) => `
-        <div class="driver-col-step">
-          <div class="driver-col-step-head">
-            <span class="driver-col-step-rank">#${i + 1}</span>
-            <span class="driver-col-step-name">${showProduct ? `${r.product} — ` : ""}${r.step}${falloffReasonNote(productId, r.step) ? chartInfoIcon(falloffReasonNote(productId, r.step)) : ""}</span>
-          </div>
-          <div class="driver-col-step-rate ${SIG_CLASS[r.significance]}">${pct(r.abandonRate * 100)}</div>
-          <div class="driver-col-step-stats">
-            <span class="${r.vsWeek <= 0 ? "good" : "risk"}">wk ${fmtDeltaPts(r.vsWeek)}</span>
-            <span class="${r.vsMonth != null && r.vsMonth <= 0 ? "good" : r.vsMonth != null ? "risk" : ""}">mo ${fmtDeltaPts(r.vsMonth)}</span>
-            <span>${compactNum(r.abandoned)} lost</span>
-          </div>
-        </div>`;
 
       let rankingHtml;
       if (!separated) {
@@ -2948,28 +3146,6 @@
     }
 
     const steps = view.falloff;
-    const max = Math.max.apply(null, steps.map((s) => s.abandonRate));
-
-    // Same falloff-row card Portfolio's ranking uses (2026-07-19): rank +
-    // step name on top, then the significance-colored abandon rate and its
-    // wk/mo movement + customer-count-lost stats -- reusing SIG_CLASS/
-    // fmtDeltaPts so a step reads identically whether it's here or pooled
-    // into a Portfolio column. The magnitude bar stays (unique to this
-    // tab's natural-workflow-order view; Portfolio's ranking doesn't have
-    // one), it's only the right-hand value cell that's now the shared format.
-    const falloffRowHtml = (s, i, stepMax) => `
-      <div class="falloff-row">
-        <div class="falloff-label"><span class="step-index">${i + 1}</span> ${s.step}${falloffReasonNote(tabId, s.step) ? chartInfoIcon(falloffReasonNote(tabId, s.step)) : ""}${s.step === FRICTION_LABEL[tabId] ? ' <span class="friction-tag">friction point</span>' : ""}</div>
-        <div class="falloff-bar-track"><div class="falloff-bar-fill ${s.step === FRICTION_LABEL[tabId] ? "fill-risk" : "fill-neutral"}" style="width:${(s.abandonRate / stepMax) * 100}%"></div></div>
-        <div class="falloff-value">
-          <div class="driver-col-step-rate ${SIG_CLASS[s.significance]}">${pct(s.abandonRate * 100)}</div>
-          <div class="driver-col-step-stats">
-            <span class="${s.vsWeek <= 0 ? "good" : "risk"}">wk ${fmtDeltaPts(s.vsWeek)}</span>
-            <span class="${s.vsMonth != null && s.vsMonth <= 0 ? "good" : s.vsMonth != null ? "risk" : ""}">mo ${fmtDeltaPts(s.vsMonth)}</span>
-            <span>${compactNum(s.abandoned)} lost</span>
-          </div>
-        </div>
-      </div>`;
 
     let rateCard, volCard, listHtml;
     if (!splitBy) {
@@ -2998,9 +3174,17 @@
           ${volSvg}
         </div>`;
 
+      // 2026-07-20: rearranged from a full-width row list (with its own
+      // magnitude bar) into the same horizontal step-card box grid
+      // Portfolio's Combined-toggle ranking uses (stepCardHtml/.driver-col-
+      // grid), for a consistent ranking format across the whole dashboard.
+      // Still kept in natural workflow order (not re-sorted by magnitude --
+      // see note above), and the friction step still gets its "friction
+      // point" pill; only the row-vs-box presentation changed.
       listHtml = `
-        <div class="falloff-list">
-          ${steps.map((s, i) => falloffRowHtml(s, i, max)).join("")}
+        <div class="driver-rank-sub">${WORKFLOW_LABEL[tabId]} falloff steps, in workflow order.</div>
+        <div class="driver-col-grid">
+          ${steps.map((s, i) => stepCardHtml(s, i, false, tabId, FRICTION_LABEL[tabId])).join("")}
         </div>`;
     } else {
       const dimLabel = FILTER_DIMS[splitBy].label;
@@ -3036,19 +3220,21 @@
           </div>
         </div>`;
 
+      // 2026-07-20: same box-card format as the unsplit case above and as
+      // Portfolio's own per-segment columns -- each segment's steps are now
+      // stacked .driver-col-step boxes directly inside its .driver-col
+      // (matching Portfolio's product-split pattern), not a nested
+      // .falloff-list of full-width rows.
       listHtml = `
         <div class="driver-rank-sub">Falloff steps for ${WORKFLOW_LABEL[tabId]}, in workflow order within each ${dimLabel} value.</div>
         <div class="driver-col-grid">
           ${segmentValues
             .map((v, i) => {
               const segSteps = falloffStepsForProduct(tabId, filtersPinned(filters, splitBy, v));
-              const segMax = Math.max.apply(null, segSteps.map((s) => s.abandonRate));
               return `
             <div class="driver-col">
               <div class="driver-col-title" style="border-top-color:${DRIVER_TREND_PALETTE[i % DRIVER_TREND_PALETTE.length]}">${v}</div>
-              <div class="falloff-list">
-                ${segSteps.map((s, si) => falloffRowHtml(s, si, segMax)).join("")}
-              </div>
+              ${segSteps.map((s, si) => stepCardHtml(s, si, false, tabId, FRICTION_LABEL[tabId])).join("")}
             </div>`;
             })
             .join("")}
